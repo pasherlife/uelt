@@ -1,0 +1,13 @@
+{
+  "name": "uelt-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UELT Web — спільний переклад locres-файлів з акаунтами та правами доступу",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "make-admin": "node --disable-warning=ExperimentalWarning src/cli.js make-admin"
+  }
+}

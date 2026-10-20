@@ -1,0 +1,16 @@
+# Без Docker: скопіть проєкт у /opt/uelt, `cp deploy/uelt.service /etc/systemd/system/`,
+# `systemctl enable --now uelt`. HTTPS забезпечте через Caddy/nginx перед ним.
+[Unit]
+Description=UELT Web
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/uelt
+ExecStart=/usr/bin/node src/server.js
+Environment=PORT=3000 HOST=127.0.0.1 UELT_DB=/var/lib/uelt/uelt.db UELT_SECURE_COOKIES=1
+User=uelt
+StateDirectory=uelt
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

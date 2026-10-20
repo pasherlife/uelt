@@ -1,0 +1,4 @@
+translate.example.com {
+	encode gzip
+	reverse_proxy uelt:3000
+}
