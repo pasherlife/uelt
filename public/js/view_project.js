@@ -1,4 +1,5 @@
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
+import { openExportDialog } from './export_dialog.js';
 import { h, clear, fmt, pct, plural, ago, askDialog, toast, debounce, menu, avatar } from './util.js';
 import { progressBar } from './view_projects.js';
 import { get, post, patch, del, api } from './api.js';
@@ -94,7 +95,7 @@ export async function projectView(root, projectId) {
     const canImport = f.canEdit && !data.project.archived;
     const more = menu([
       canImport && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: admin || !!data.me?.canApprove, onDone: reload }) },
-      admin && f.format !== 'csv' && { label: 'Скачати .locres', href: `/api/files/${f.id}/export`, download: true },
+      admin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId: f.id, fileName: base, sourceFormat: f.format }) },
       admin && !data.project.archived && { label: 'Оновити оригінал…', onclick: () => updateOriginal(f) },
       admin && !data.project.archived && { sep: true },
       admin && !data.project.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations(f, reload) },

@@ -3,6 +3,7 @@ import { get, post, patch, api, ApiError } from './api.js';
 import { topbar, session } from './app.js';
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
 import { pickAndImportCsv } from './csv_import.js';
+import { openExportDialog } from './export_dialog.js';
 import { createStrip } from './strip.js';
 
 const PAGE = 100;
@@ -101,7 +102,7 @@ export async function editorView(root, fileId) {
     perms.canEdit && { label: 'Змінити статус для всіх за фільтром…', onclick: () => bulkAll() },
     perms.canEdit && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
     perms.canEdit && { label: 'Імпортувати CSV…', onclick: () => pickAndImportCsv({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
-    isAdmin && file.format !== 'csv' && { label: 'Скачати .locres', href: `/api/files/${fileId}/export`, download: true },
+    isAdmin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId, fileName: base, sourceFormat: file.format }) },
     isAdmin && !perms.archived && { sep: true },
     isAdmin && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },
   ], { label: 'Дії з файлом' });

@@ -75,8 +75,10 @@ test('API: завантаження .csv у проєкт, рядки, стату
   assert.equal(loc.status, 200);
   assert.equal((await owner.get(`/api/files/${loc.data.id}`)).data.file.format, 'locres');
 
-  // експорт для CSV-джерела тимчасово недоступний (етап 4)
-  assert.equal((await owner.rawGet(`/api/files/${fileId}/export`)).status, 409);
+  // експорт CSV-файлу працює (за замовчуванням — у форматі джерела)
+  const exp = await owner.rawGet(`/api/files/${fileId}/export`);
+  assert.equal(exp.status, 200);
+  assert.match(exp.headers.get('content-type'), /text\/csv/);
 
   // оновлення оригіналу через CSV: переклади зберігаються, новий рядок додається, зниклий видаляється
   const csv2 = 'key,source\nMenu::Play,Play now\nMenu::Quit,Quit game\nMenu::New,Brand new\nHello,"Line one\nLine two"\nSame::eq,Same';

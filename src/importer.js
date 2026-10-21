@@ -36,8 +36,8 @@ const nonAscii = (s) => /[^\x00-\x7f]/.test(s);
  * рядків із тим самим простором імен і ключем (так само нумерує assignRowIds); інакше це частина ключа.
  * Наприкінці ID перераховуються через assignRowIds і мають збігатися з вхідними, інакше — помилка.
  */
-export function csvToLoc(buffer, { delimiter = 'auto' } = {}) {
-  const parsed = parseCsvSource(buffer, { delimiter });
+export function csvToLoc(buffer, { delimiter = 'auto', unguard = false } = {}) {
+  const parsed = parseCsvSource(buffer, { delimiter, unguard });
   const namespaces = [];
   const nsIndex = new Map();
   const counts = new Map();
@@ -63,8 +63,8 @@ export function csvToLoc(buffer, { delimiter = 'auto' } = {}) {
 }
 
 /** Створює файл проєкту з CSV (key, source, необов'язково translation і status). Статус із CSV враховується лише з правом затверджувати. */
-export function importCsvSource(db, { projectId, name, buffer, userId, canApprove = false, delimiter = 'auto' }) {
-  const { loc, ids, parsed } = csvToLoc(buffer, { delimiter });
+export function importCsvSource(db, { projectId, name, buffer, userId, canApprove = false, delimiter = 'auto', unguard = false }) {
+  const { loc, ids, parsed } = csvToLoc(buffer, { delimiter, unguard });
   if (loc.entries.length === 0) throw new HttpError(400, 'У файлі немає жодного рядка.');
   const meta = JSON.stringify({ namespaces: loc.namespaces, cv2: null, csv: { delimiter: parsed.delimiter, encoding: parsed.encoding, columns: parsed.columns } });
 
@@ -129,13 +129,13 @@ export function importLocres(db, { projectId, name, buffer, userId, cv2 = null }
  * - новий ключ → додається без перекладу; зниклий ключ → видаляється разом з перекладом.
  * apply=false — лише звіт.
  */
-export function updateLocres(db, { file, buffer, userId, apply, delimiter = 'auto' }) {
+export function updateLocres(db, { file, buffer, userId, apply, delimiter = 'auto', unguard = false }) {
   let loc, ids, csvInfo = null;
   const oldMeta = JSON.parse(file.meta);
   const cv2 = oldMeta.cv2 ?? null;
   if (file.format === 'csv') {
     // CSV-джерело: оновлюється лише оригінал (стовпець source); стовпці translation і status ігноруються
-    const c = csvToLoc(buffer, { delimiter });
+    const c = csvToLoc(buffer, { delimiter, unguard });
     loc = c.loc; ids = c.ids;
     csvInfo = { delimiter: c.parsed.delimiter, encoding: c.parsed.encoding, columns: c.parsed.columns };
   } else {

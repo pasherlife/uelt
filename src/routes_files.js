@@ -2,10 +2,9 @@ import path from 'node:path';
 import { HttpError, RawResponse, readJson, readBody, contentDisposition } from './http.js';
 import { updateLocres, importTranslations } from './importer.js';
 import { requireUser, requireAdmin, fileAccess } from './perm.js';
-import { buildLocres } from './locres.js';
-import { cv2Process } from './cv2.js';
 import { tx } from './db.js';
-import { parseCsvTranslations, delimiterName, MAX_CSV_BYTES } from './csv_import.js';
+import { parseCsvTranslations, delimiterName, normalizeDelimiter, MAX_CSV_BYTES } from './csv_import.js';
+import { buildCsv, buildLocresExport, EXPORT_SCOPES } from './exporter.js';
 
 const MAX_TRANSLATION = 50_000;
 const FILTERS = new Set(['all', 'untranslated', 'review', 'approved', 'notapproved', 'mine', 'changed']);
@@ -233,22 +232,34 @@ export function registerFileRoutes(router, app) {
     return { ok: true };
   });
 
+  /**
+   * Експорт файлу (лише адмін): ?format=locres|csv (за замовчуванням — формат джерела).
+   * csv: scope (all|untranslated|review|approved|notapproved|changed), delimiter (semicolon|comma|tab), bom=0|1, safe=1.
+   * locres із CSV-джерела: version=0|1|2.
+   */
   router.get('/api/files/:id/export', (ctx) => {
-    const user = requireAdmin(ctx); // скачувати готовий locres може лише адміністратор
+    const user = requireAdmin(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
-    if (a.file.format === 'csv') throw new HttpError(409, 'Експорт файлів, створених із CSV, буде доступний у наступному оновленні.');
-    const meta = JSON.parse(a.file.meta);
+    const format = ctx.query.get('format') || a.file.format;
+    if (format !== 'locres' && format !== 'csv') throw new HttpError(400, 'Формат експорту: locres або csv.');
+    const origName = path.posix.basename(a.file.name);
+    const base = origName.replace(/\.(locres|csv)$/i, '');
+
+    if (format === 'csv') {
+      const scope = ctx.query.get('scope') || 'all';
+      if (!EXPORT_SCOPES.has(scope)) throw new HttpError(400, 'Невідомий набір рядків для експорту.');
+      const delimiter = normalizeDelimiter(ctx.query.get('delimiter') || 'semicolon') ?? ';';
+      const { where, params } = filterClause(new URLSearchParams({ filter: scope }), user);
+      const rows = db.prepare(`SELECT r.* FROM rows r WHERE r.file_id = ?${where} ORDER BY r.pos`).all(a.file.id, ...params);
+      const buf = buildCsv(rows, { delimiter, bom: ctx.query.get('bom') !== '0', safe: ctx.query.get('safe') === '1' });
+      return new RawResponse(200, buf, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': contentDisposition(`${base}.csv`) });
+    }
+
     const rows = db.prepare('SELECT * FROM rows WHERE file_id = ? ORDER BY pos').all(a.file.id);
-    const entries = rows.map((r) => ({
-      ns: r.ns, key: r.key, keyHash: r.key_hash, valueHash: r.value_hash, externId: r.extern_id,
-      keyUnicode: !!r.key_unicode, valueUnicode: !!r.value_unicode,
-      value: r.translation !== '' ? r.translation : r.source,
-    }));
-    let buf = buildLocres({ version: a.file.version, namespaces: meta.namespaces, entries });
-    if (meta.cv2) buf = cv2Process(buf, meta.cv2, true);
+    const buf = buildLocresExport(a.file, rows, ctx.query.get('version'));
     return new RawResponse(200, buf, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': contentDisposition(path.posix.basename(a.file.name)),
+      'Content-Disposition': contentDisposition(a.file.format === 'locres' ? origName : `${base}.locres`),
     });
   });
 
@@ -261,7 +272,8 @@ export function registerFileRoutes(router, app) {
     else if (typeof body.csv === 'string') input = body.csv;
     else throw new HttpError(400, 'Передайте CSV як csvBase64 (байти) або csv (текст).');
     const delimiter = body.delimiter ?? ctx.query.get('delimiter') ?? 'auto';
-    return { parsed: parseCsvTranslations(input, { delimiter }), actions: body.actions ?? {} };
+    const unguard = body.safe === true || ctx.query.get('safe') === '1';
+    return { parsed: parseCsvTranslations(input, { delimiter, unguard }), actions: body.actions ?? {} };
   }
 
   function csvPreview(fileId, parsed) {
@@ -367,7 +379,7 @@ export function registerFileRoutes(router, app) {
     const a = fileAccess(db, Number(ctx.params.id), user);
     if (a.project.archived) throw new HttpError(409, 'Проєкт архівований.');
     const buffer = await readBody(ctx.req, a.file.format === 'csv' ? MAX_CSV_BYTES : 256 * 1024 * 1024);
-    const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1', delimiter: ctx.query.get('delimiter') ?? 'auto' });
+    const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1', delimiter: ctx.query.get('delimiter') ?? 'auto', unguard: ctx.query.get('safe') === '1' });
     if (ctx.query.get('apply') === '1') { stats.drop(a.file.id); strips.drop(a.file.id); }
     return { ...report, applied: ctx.query.get('apply') === '1' };
   });

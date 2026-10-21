@@ -120,7 +120,7 @@ export function parseCsvTranslations(input, options = {}) {
   if (text.length > MAX_CSV_BYTES) throw new HttpError(413, 'CSV завеликий (максимум 20 МБ).');
   if (!text.trim()) throw new HttpError(400, 'CSV-файл порожній.');
   const delimiter = normalizeDelimiter(options.delimiter) ?? detectDelimiter(text);
-  const records = parseRecords(text, delimiter);
+  const records = applyUnguard(parseRecords(text, delimiter), options.unguard);
   if (records.length < 2) throw new HttpError(400, 'CSV має містити заголовок і щонайменше один рядок.');
 
   const headers = records[0].map(normalize);
@@ -145,6 +145,10 @@ export function parseCsvTranslations(input, options = {}) {
   return { delimiter, encoding, entries };
 }
 
+/** Знімає захисний апостроф, доданий експортом у «безпечному режимі для Excel» (перед = + - @ або табуляцією). */
+const unguardCell = (s) => (/^'[=+\-@\t\r]/.test(s) ? s.slice(1) : s);
+const applyUnguard = (records, on) => (on ? records.map((r) => r.map(unguardCell)) : records);
+
 const STATUS_NAMES = ['status', 'статус'];
 const STATUS_VALUES = {
   '0': 0, none: 0, безстатусу: 0,
@@ -168,7 +172,7 @@ export function parseCsvSource(input, options = {}) {
   const { text, encoding } = decodeCsv(input);
   if (!text.trim()) throw new HttpError(400, 'CSV-файл порожній.');
   const delimiter = normalizeDelimiter(options.delimiter) ?? detectDelimiter(text);
-  const records = parseRecords(text, delimiter);
+  const records = applyUnguard(parseRecords(text, delimiter), options.unguard);
   if (records.length < 2) throw new HttpError(400, 'CSV має містити заголовок і щонайменше один рядок.');
 
   const headers = records[0].map(normalize);

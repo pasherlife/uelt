@@ -183,7 +183,7 @@ export function registerProjectRoutes(router, app) {
       if (ctx.query.get('cv2')) throw new HttpError(400, 'Набір ключів CV2 застосовується лише до файлів .locres.');
       const buffer = await readBody(ctx.req, MAX_CSV_BYTES);
       // адмін завантажує джерело, тому статуси з CSV (колонка status) враховуються
-      return importCsvSource(db, { projectId: pid, name, buffer, userId: user.id, canApprove: true, delimiter: ctx.query.get('delimiter') ?? 'auto' });
+      return importCsvSource(db, { projectId: pid, name, buffer, userId: user.id, canApprove: true, delimiter: ctx.query.get('delimiter') ?? 'auto', unguard: ctx.query.get('safe') === '1' });
     }
     const cv2 = checkCv2(ctx.query.get('cv2'));
     const buffer = await readBody(ctx.req, MAX_UPLOAD);
