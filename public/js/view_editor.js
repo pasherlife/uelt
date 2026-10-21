@@ -101,7 +101,7 @@ export async function editorView(root, fileId) {
     perms.canEdit && { label: 'Змінити статус для всіх за фільтром…', onclick: () => bulkAll() },
     perms.canEdit && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
     perms.canEdit && { label: 'Імпортувати CSV…', onclick: () => pickAndImportCsv({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
-    isAdmin && { label: 'Скачати .locres', href: `/api/files/${fileId}/export`, download: true },
+    isAdmin && file.format !== 'csv' && { label: 'Скачати .locres', href: `/api/files/${fileId}/export`, download: true },
     isAdmin && !perms.archived && { sep: true },
     isAdmin && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },
   ], { label: 'Дії з файлом' });

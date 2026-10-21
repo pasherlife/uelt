@@ -1,6 +1,7 @@
 import { HttpError, readJson, readBody } from './http.js';
 import { requireUser, requireAdmin, projectAccess } from './perm.js';
-import { importLocres, sanitizeFileName, checkCv2 } from './importer.js';
+import { importLocres, importCsvSource, sanitizeFileName, fileFormat, checkCv2 } from './importer.js';
+import { MAX_CSV_BYTES } from './csv_import.js';
 import { sumStats } from './stats.js';
 import { tx } from './db.js';
 
@@ -69,7 +70,7 @@ export function registerProjectRoutes(router, app) {
       files: files.map((f) => {
         const last = lastEditStmt.get(f.id);
         const item = {
-          id: f.id, name: f.name, rowCount: f.row_count, rev: f.rev,
+          id: f.id, name: f.name, format: f.format, rowCount: f.row_count, rev: f.rev,
           stats: fileStats(f),
           strip: strips.get(f, 120),
           canEdit: !project.archived && editable.has(f.id),
@@ -177,6 +178,13 @@ export function registerProjectRoutes(router, app) {
     const { project } = projectAccess(db, pid, user);
     if (project.archived) throw new HttpError(409, 'Проєкт архівований.');
     const name = sanitizeFileName(ctx.query.get('name'));
+    const format = fileFormat(name);
+    if (format === 'csv') {
+      if (ctx.query.get('cv2')) throw new HttpError(400, 'Набір ключів CV2 застосовується лише до файлів .locres.');
+      const buffer = await readBody(ctx.req, MAX_CSV_BYTES);
+      // адмін завантажує джерело, тому статуси з CSV (колонка status) враховуються
+      return importCsvSource(db, { projectId: pid, name, buffer, userId: user.id, canApprove: true, delimiter: ctx.query.get('delimiter') ?? 'auto' });
+    }
     const cv2 = checkCv2(ctx.query.get('cv2'));
     const buffer = await readBody(ctx.req, MAX_UPLOAD);
     return importLocres(db, { projectId: pid, name, buffer, userId: user.id, cv2 });

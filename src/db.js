@@ -115,6 +115,10 @@ export function openDb(dbPath) {
   if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'struct_rev')) {
     db.exec('ALTER TABLE files ADD COLUMN struct_rev INTEGER NOT NULL DEFAULT 0');
   }
+  // формат джерела файлу: 'locres' | 'csv'
+  if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'format')) {
+    db.exec("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT 'locres'");
+  }
   const userCols = new Set(db.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
   for (const col of ['email', 'discord', 'telegram']) {
     if (!userCols.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);

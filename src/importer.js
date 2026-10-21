@@ -1,5 +1,6 @@
 import { HttpError } from './http.js';
-import { parseLocres, assignRowIds } from './locres.js';
+import { parseLocres, assignRowIds, breaksToMarkers } from './locres.js';
+import { parseCsvSource } from './csv_import.js';
 import { countWords } from './words.js';
 import { tx } from './db.js';
 import { cv2Process, CV2_SETS } from './cv2.js';
@@ -20,8 +21,77 @@ export function sanitizeFileName(raw) {
   name = name.split('/').filter((s) => s && s !== '.').join('/');
   if (!name || name.length > 240) throw new HttpError(400, 'Некоректна назва файлу.');
   if (name.split('/').some((s) => s === '..')) throw new HttpError(400, 'Некоректний шлях до файлу.');
-  if (!/\.locres$/i.test(name)) throw new HttpError(400, 'Підтримуються лише файли .locres.');
+  if (!/\.(locres|csv)$/i.test(name)) throw new HttpError(400, 'Підтримуються лише файли .locres і .csv.');
   return name;
+}
+
+/** Формат джерела за розширенням імені файлу. */
+export const fileFormat = (name) => (/\.csv$/i.test(name) ? 'csv' : 'locres');
+
+const nonAscii = (s) => /[^\x00-\x7f]/.test(s);
+
+/**
+ * CSV-джерело → структура locres. ID рядка розбивається на простір імен і ключ за ПЕРШИМ «::».
+ * Суфікс «[n]» (n ≥ 1) вважається маркером дубліката, лише якщо n дорівнює кількості попередніх
+ * рядків із тим самим простором імен і ключем (так само нумерує assignRowIds); інакше це частина ключа.
+ * Наприкінці ID перераховуються через assignRowIds і мають збігатися з вхідними, інакше — помилка.
+ */
+export function csvToLoc(buffer, { delimiter = 'auto' } = {}) {
+  const parsed = parseCsvSource(buffer, { delimiter });
+  const namespaces = [];
+  const nsIndex = new Map();
+  const counts = new Map();
+  const entries = parsed.entries.map((e) => {
+    const sep = e.id.indexOf('::');
+    const nsName = sep >= 0 ? e.id.slice(0, sep) : '';
+    let key = sep >= 0 ? e.id.slice(sep + 2) : e.id;
+    const m = /^(.*)\[(\d+)\]$/.exec(key);
+    if (m && Number(m[2]) >= 1 && counts.get(`${nsName}::${m[1]}`) === Number(m[2])) key = m[1];
+    counts.set(`${nsName}::${key}`, (counts.get(`${nsName}::${key}`) ?? 0) + 1);
+    if (!nsIndex.has(nsName)) { nsIndex.set(nsName, namespaces.length); namespaces.push({ name: nsName, hash: 0, unicode: nonAscii(nsName) }); }
+    const value = breaksToMarkers(e.source);
+    return { ns: nsIndex.get(nsName), key, keyHash: 0, valueHash: 0, externId: 0, keyUnicode: nonAscii(key), valueUnicode: nonAscii(value), value };
+  });
+  const loc = { version: 2, namespaces, entries };
+  const ids = assignRowIds(loc);
+  ids.forEach((id, i) => {
+    if (id !== parsed.entries[i].id) {
+      throw new HttpError(400, `Ключ «${parsed.entries[i].id}» у рядку ${parsed.entries[i].csvRow} має некоректний формат (очікувалось «${id}»).`);
+    }
+  });
+  return { loc, ids, parsed };
+}
+
+/** Створює файл проєкту з CSV (key, source, необов'язково translation і status). Статус із CSV враховується лише з правом затверджувати. */
+export function importCsvSource(db, { projectId, name, buffer, userId, canApprove = false, delimiter = 'auto' }) {
+  const { loc, ids, parsed } = csvToLoc(buffer, { delimiter });
+  if (loc.entries.length === 0) throw new HttpError(400, 'У файлі немає жодного рядка.');
+  const meta = JSON.stringify({ namespaces: loc.namespaces, cv2: null, csv: { delimiter: parsed.delimiter, encoding: parsed.encoding, columns: parsed.columns } });
+
+  return tx(db, () => {
+    if (db.prepare('SELECT 1 FROM files WHERE project_id = ? AND name = ?').get(projectId, name)) {
+      throw new HttpError(409, `Файл «${name}» уже є у проєкті.`);
+    }
+    const f = db.prepare('INSERT INTO files(project_id, name, version, meta, row_count, uploaded_by, created_at, format) VALUES(?,?,?,?,?,?,?,?)')
+      .run(projectId, name, loc.version, meta, loc.entries.length, userId, Date.now(), 'csv');
+    const fileId = Number(f.lastInsertRowid);
+    const ins = db.prepare(`INSERT INTO rows(file_id, pos, ns, row_key, key, key_hash, value_hash, extern_id, key_unicode, value_unicode,
+        source, translation, status, src_words, src_lc, tr_lc, key_lc, updated_by, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const now = Date.now();
+    let translated = 0;
+    loc.entries.forEach((e, i) => {
+      const item = parsed.entries[i];
+      const tr = breaksToMarkers(item.translation);
+      const hasTr = tr !== '' && tr !== e.value;
+      let status = hasTr ? 1 : 0;
+      if (hasTr && canApprove && item.status != null) status = item.status;
+      if (hasTr) translated++;
+      ins.run(fileId, i, e.ns, ids[i], e.key, e.keyHash, e.valueHash, e.externId, e.keyUnicode ? 1 : 0, e.valueUnicode ? 1 : 0,
+        e.value, hasTr ? tr : '', status, countWords(e.value), e.value.toLowerCase(), hasTr ? tr.toLowerCase() : '', ids[i].toLowerCase(),
+        hasTr ? userId : null, hasTr ? now : null);
+    });
+    return { id: fileId, name, rowCount: loc.entries.length, version: loc.version, format: 'csv', translated, delimiter: parsed.delimiter, encoding: parsed.encoding };
+  });
 }
 
 export function importLocres(db, { projectId, name, buffer, userId, cv2 = null }) {
@@ -59,12 +129,20 @@ export function importLocres(db, { projectId, name, buffer, userId, cv2 = null }
  * - новий ключ → додається без перекладу; зниклий ключ → видаляється разом з перекладом.
  * apply=false — лише звіт.
  */
-export function updateLocres(db, { file, buffer, userId, apply }) {
-  let loc;
-  const cv2 = JSON.parse(file.meta).cv2 ?? null;
-  try { loc = parseLocres(decryptIfNeeded(buffer, cv2)); } catch (e) { throw new HttpError(400, `Не вдалося прочитати locres: ${e.message}`); }
+export function updateLocres(db, { file, buffer, userId, apply, delimiter = 'auto' }) {
+  let loc, ids, csvInfo = null;
+  const oldMeta = JSON.parse(file.meta);
+  const cv2 = oldMeta.cv2 ?? null;
+  if (file.format === 'csv') {
+    // CSV-джерело: оновлюється лише оригінал (стовпець source); стовпці translation і status ігноруються
+    const c = csvToLoc(buffer, { delimiter });
+    loc = c.loc; ids = c.ids;
+    csvInfo = { delimiter: c.parsed.delimiter, encoding: c.parsed.encoding, columns: c.parsed.columns };
+  } else {
+    try { loc = parseLocres(decryptIfNeeded(buffer, cv2)); } catch (e) { throw new HttpError(400, `Не вдалося прочитати locres: ${e.message}`); }
+    ids = assignRowIds(loc);
+  }
   if (loc.entries.length === 0) throw new HttpError(400, 'У файлі немає жодного рядка.');
-  const ids = assignRowIds(loc);
 
   const run = () => {
     const old = new Map(db.prepare('SELECT id, row_key, source, translation, status FROM rows WHERE file_id = ?').all(file.id).map((r) => [r.row_key, r]));
@@ -110,7 +188,7 @@ export function updateLocres(db, { file, buffer, userId, apply }) {
       }
     }
     db.prepare('UPDATE files SET version = ?, meta = ?, row_count = ? WHERE id = ?')
-      .run(loc.version, JSON.stringify({ namespaces: loc.namespaces, cv2 }), loc.entries.length, file.id);
+      .run(loc.version, JSON.stringify({ ...oldMeta, namespaces: loc.namespaces, cv2, ...(csvInfo ? { csv: csvInfo } : {}) }), loc.entries.length, file.id);
     return report;
   };
   return apply ? tx(db, run) : run();

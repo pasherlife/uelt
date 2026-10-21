@@ -144,3 +144,60 @@ export function parseCsvTranslations(input, options = {}) {
   }
   return { delimiter, encoding, entries };
 }
+
+const STATUS_NAMES = ['status', 'статус'];
+const STATUS_VALUES = {
+  '0': 0, none: 0, безстатусу: 0,
+  '1': 1, review: 1, needsreview: 1, навичитку: 1,
+  '2': 2, approved: 2, затверджено: 2,
+};
+
+/** Статус із клітинки CSV: порожнє → null (визначиться автоматично), невідоме → помилка. */
+function parseStatusCell(raw, csvRow) {
+  const v = normalize(String(raw ?? ''));
+  if (v === '') return null;
+  if (!(v in STATUS_VALUES)) throw new HttpError(400, `Невідомий статус «${String(raw).trim()}» у рядку ${csvRow} (0/1/2, none/review/approved).`);
+  return STATUS_VALUES[v];
+}
+
+/**
+ * Розбирає CSV як джерело файлу проєкту: обов'язкові key і source, необов'язкові translation і status.
+ * Повертає { delimiter, encoding, columns, hasStatus, entries: [{ id, source, translation, status, csvRow }] }.
+ */
+export function parseCsvSource(input, options = {}) {
+  const { text, encoding } = decodeCsv(input);
+  if (!text.trim()) throw new HttpError(400, 'CSV-файл порожній.');
+  const delimiter = normalizeDelimiter(options.delimiter) ?? detectDelimiter(text);
+  const records = parseRecords(text, delimiter);
+  if (records.length < 2) throw new HttpError(400, 'CSV має містити заголовок і щонайменше один рядок.');
+
+  const headers = records[0].map(normalize);
+  const find = (names) => headers.findIndex((h) => names.includes(h));
+  const keyIndex = find(KEY_NAMES);
+  const sourceIndex = find(SOURCE_NAMES);
+  const trIndex = find(TRANSLATION_NAMES);
+  const statusIndex = find(STATUS_NAMES);
+  if (keyIndex < 0 || sourceIndex < 0 || keyIndex === sourceIndex) {
+    throw new HttpError(400, 'CSV повинен містити стовпці key і source (або «ключ» і «оригінал»).');
+  }
+  const columns = ['key', 'source'];
+  if (trIndex >= 0) columns.push('translation');
+  if (statusIndex >= 0) columns.push('status');
+
+  const seen = new Set();
+  const entries = [];
+  for (let i = 1; i < records.length; i++) {
+    const cells = records[i];
+    const csvRow = i + 1;
+    if (cells.length !== records[0].length) throw new HttpError(400, `У CSV різна кількість стовпців у рядку ${csvRow}. Перевірте лапки та роздільник.`);
+    const id = String(cells[keyIndex] ?? '').trim();
+    const source = String(cells[sourceIndex] ?? '');
+    const translation = trIndex >= 0 ? String(cells[trIndex] ?? '') : '';
+    if (!id) throw new HttpError(400, `У CSV порожній ключ у рядку ${csvRow}.`);
+    if (seen.has(id)) throw new HttpError(400, `У CSV повторюється ключ «${id}» (рядок ${csvRow}).`);
+    if (source.length > 50_000 || translation.length > 50_000) throw new HttpError(400, `Текст у рядку ${csvRow} задовгий.`);
+    seen.add(id);
+    entries.push({ id, source, translation, status: statusIndex >= 0 ? parseStatusCell(cells[statusIndex], csvRow) : null, csvRow });
+  }
+  return { delimiter, encoding, columns, hasStatus: statusIndex >= 0, entries };
+}

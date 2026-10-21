@@ -94,7 +94,7 @@ export async function projectView(root, projectId) {
     const canImport = f.canEdit && !data.project.archived;
     const more = menu([
       canImport && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: admin || !!data.me?.canApprove, onDone: reload }) },
-      admin && { label: 'Скачати .locres', href: `/api/files/${f.id}/export`, download: true },
+      admin && f.format !== 'csv' && { label: 'Скачати .locres', href: `/api/files/${f.id}/export`, download: true },
       admin && !data.project.archived && { label: 'Оновити оригінал…', onclick: () => updateOriginal(f) },
       admin && !data.project.archived && { sep: true },
       admin && !data.project.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations(f, reload) },
@@ -107,7 +107,8 @@ export async function projectView(root, projectId) {
       h('div', { class: 'file-main' },
         h('div', { class: 'file-name' },
           dir && h('span', { class: 'dir' }, dir),
-          h('span', { class: 'base' }, base)),
+          h('span', { class: 'base' }, base),
+          f.format === 'csv' && h('span', { class: 'pill', title: 'Джерело — CSV' }, 'CSV')),
         h('div', { class: 'file-meta' },
           !f.canEdit && h('span', { class: 'pill ro', title: 'Адміністратор не надав вам доступ до редагування цього файлу' }, 'лише перегляд'),
           f.online.length > 0 && h('span', { class: 'avatars', title: `Зараз у файлі: ${f.online.map((o) => o.username).join(', ')}` },
@@ -125,7 +126,7 @@ export async function projectView(root, projectId) {
 
   // ── Оновлення оригіналу (адмін): звіт → підтвердження → застосування ──
   function updateOriginal(f) {
-    const input = h('input', { type: 'file', accept: '.locres', class: 'hidden' });
+    const input = h('input', { type: 'file', accept: f.format === 'csv' ? '.csv,.tsv,.txt,text/csv' : '.locres', class: 'hidden' });
     input.addEventListener('change', async () => {
       const file = input.files[0];
       if (!file) return;
@@ -151,19 +152,19 @@ export async function projectView(root, projectId) {
   // ── Завантаження (адмін) ──
   function uploader() {
     const list = h('ul', { class: 'upload-list' });
-    const fileInput = h('input', { type: 'file', multiple: true, accept: '.locres', class: 'hidden' });
+    const fileInput = h('input', { type: 'file', multiple: true, accept: '.locres,.csv', class: 'hidden' });
     const dirInput = h('input', { type: 'file', webkitdirectory: true, class: 'hidden' });
-    const cv2Sel = h('select', { title: 'Лише для locres Code Vein 2 із зашифрованим LUT' },
+    const cv2Sel = h('select', { title: 'Лише для .locres Code Vein 2 із зашифрованим LUT (для .csv не застосовується)' },
       h('option', { value: '' }, 'Без шифрування'), h('option', { value: 'release' }, 'CV2 Release'), h('option', { value: 'demo' }, 'CV2 Demo'));
     const zone = h('div', { class: 'dropzone' },
-      h('span', null, 'Перетягніть сюди файли .locres або теку'),
+      h('span', null, 'Перетягніть сюди файли .locres або .csv, або теку'),
       h('button', { class: 'btn small', type: 'button', onclick: () => fileInput.click() }, 'Обрати файли'),
       h('button', { class: 'btn small', type: 'button', onclick: () => dirInput.click() }, 'Обрати теку'),
       cv2Sel, fileInput, dirInput);
 
     async function uploadAll(files) {
-      const locres = [...files].filter((f) => /\.locres$/i.test(f.name));
-      if (!locres.length) { toast('Серед обраних немає файлів .locres', true); return; }
+      const locres = [...files].filter((f) => /\.(locres|csv)$/i.test(f.name));
+      if (!locres.length) { toast('Серед обраних немає файлів .locres або .csv', true); return; }
       let okCount = 0;
       for (const f of locres) {
         const rel = f.webkitRelativePath || f.name;
@@ -171,7 +172,7 @@ export async function projectView(root, projectId) {
         list.append(li);
         try {
           const buf = await f.arrayBuffer();
-          const r = await api('POST', `/api/projects/${projectId}/files?name=${encodeURIComponent(rel)}${cv2Sel.value ? `&cv2=${cv2Sel.value}` : ''}`, buf);
+          const r = await api('POST', `/api/projects/${projectId}/files?name=${encodeURIComponent(rel)}${cv2Sel.value && /\.locres$/i.test(rel) ? `&cv2=${cv2Sel.value}` : ''}`, buf);
           li.lastChild.className = 'ok'; li.lastChild.textContent = `готово, ${fmt(r.rowCount)} рядків`;
           okCount++;
         } catch (e) { li.lastChild.className = 'bad'; li.lastChild.textContent = e.message; }
@@ -318,7 +319,7 @@ export async function projectView(root, projectId) {
     strips.splice(0).forEach((st) => st.destroy());
     clear(filesBox).append(data.files.length === 0
       ? h('div', { class: 'empty' }, h('strong', null, 'У проєкті ще немає файлів'),
-        admin ? 'Завантажте файли .locres вище — з них буде створено таблицю рядків для перекладу.' : 'Адміністратор ще не завантажив файлів.')
+        admin ? 'Завантажте файли .locres або .csv вище — з них буде створено таблицю рядків для перекладу.' : 'Адміністратор ще не завантажив файлів.')
       : h('div', { class: 'file-list' }, data.files.map(fileRow)));
   }
 

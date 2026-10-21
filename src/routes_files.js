@@ -5,7 +5,7 @@ import { requireUser, requireAdmin, fileAccess } from './perm.js';
 import { buildLocres } from './locres.js';
 import { cv2Process } from './cv2.js';
 import { tx } from './db.js';
-import { parseCsvTranslations, delimiterName } from './csv_import.js';
+import { parseCsvTranslations, delimiterName, MAX_CSV_BYTES } from './csv_import.js';
 
 const MAX_TRANSLATION = 50_000;
 const FILTERS = new Set(['all', 'untranslated', 'review', 'approved', 'notapproved', 'mine', 'changed']);
@@ -94,7 +94,7 @@ export function registerFileRoutes(router, app) {
     const user = requireUser(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
     return {
-      file: { cv2: JSON.parse(a.file.meta).cv2 ?? null, id: a.file.id, name: a.file.name, projectId: a.project.id, project: a.project.name, rowCount: a.file.row_count, rev: a.file.rev, version: a.file.version },
+      file: { format: a.file.format, cv2: JSON.parse(a.file.meta).cv2 ?? null, id: a.file.id, name: a.file.name, projectId: a.project.id, project: a.project.name, rowCount: a.file.row_count, rev: a.file.rev, version: a.file.version },
       perms: { canEdit: a.canEdit, canApprove: a.canApprove, archived: !!a.project.archived },
       stats: stats.get(a.file.id, a.file.rev),
       online: presence.list(a.file.id).map((e) => ({ userId: e.userId, username: e.username, rowPos: e.rowPos })),
@@ -236,6 +236,7 @@ export function registerFileRoutes(router, app) {
   router.get('/api/files/:id/export', (ctx) => {
     const user = requireAdmin(ctx); // скачувати готовий locres може лише адміністратор
     const a = fileAccess(db, Number(ctx.params.id), user);
+    if (a.file.format === 'csv') throw new HttpError(409, 'Експорт файлів, створених із CSV, буде доступний у наступному оновленні.');
     const meta = JSON.parse(a.file.meta);
     const rows = db.prepare('SELECT * FROM rows WHERE file_id = ? ORDER BY pos').all(a.file.id);
     const entries = rows.map((r) => ({
@@ -365,8 +366,8 @@ export function registerFileRoutes(router, app) {
     const user = requireAdmin(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
     if (a.project.archived) throw new HttpError(409, 'Проєкт архівований.');
-    const buffer = await readBody(ctx.req, 256 * 1024 * 1024);
-    const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1' });
+    const buffer = await readBody(ctx.req, a.file.format === 'csv' ? MAX_CSV_BYTES : 256 * 1024 * 1024);
+    const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1', delimiter: ctx.query.get('delimiter') ?? 'auto' });
     if (ctx.query.get('apply') === '1') { stats.drop(a.file.id); strips.drop(a.file.id); }
     return { ...report, applied: ctx.query.get('apply') === '1' };
   });
