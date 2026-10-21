@@ -5,7 +5,7 @@ import { requireUser, requireAdmin, fileAccess } from './perm.js';
 import { buildLocres } from './locres.js';
 import { cv2Process } from './cv2.js';
 import { tx } from './db.js';
-import { parseCsvTranslations } from './csv_import.js';
+import { parseCsvTranslations, delimiterName } from './csv_import.js';
 
 const MAX_TRANSLATION = 50_000;
 const FILTERS = new Set(['all', 'untranslated', 'review', 'approved', 'notapproved', 'mine', 'changed']);
@@ -252,10 +252,15 @@ export function registerFileRoutes(router, app) {
   });
 
   // CSV-імпорт перекладів у наявні рядки: спершу preview, потім підтвердження вибраних дій.
+  // Клієнт шле файл як csvBase64 (сирі байти; сервер сам визначає кодування). Поле csv (готовий текст) лишається для сумісності.
   async function readCsvRequest(ctx) {
-    const body = await readJson(ctx.req, 24 * 1024 * 1024);
-    if (typeof body.csv !== 'string') throw new HttpError(400, 'Передайте CSV як текстове поле csv.');
-    return { parsed: parseCsvTranslations(body.csv), actions: body.actions ?? {} };
+    const body = await readJson(ctx.req, 30 * 1024 * 1024);
+    let input;
+    if (typeof body.csvBase64 === 'string') input = Buffer.from(body.csvBase64, 'base64');
+    else if (typeof body.csv === 'string') input = body.csv;
+    else throw new HttpError(400, 'Передайте CSV як csvBase64 (байти) або csv (текст).');
+    const delimiter = body.delimiter ?? ctx.query.get('delimiter') ?? 'auto';
+    return { parsed: parseCsvTranslations(input, { delimiter }), actions: body.actions ?? {} };
   }
 
   function csvPreview(fileId, parsed) {
@@ -273,7 +278,8 @@ export function registerFileRoutes(router, app) {
       };
     });
     return {
-      delimiter: parsed.delimiter === ',' ? 'comma' : 'semicolon',
+      delimiter: delimiterName(parsed.delimiter),
+      encoding: parsed.encoding,
       total: items.length,
       matched: items.filter((x) => x.rowId).length,
       unknown: items.filter((x) => x.state === 'unknown').length,
