@@ -53,13 +53,13 @@ export function deleteSession(db, token) {
 export function userFromToken(db, token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.username, u.is_admin, u.disabled, s.expires_at
+    SELECT u.id, u.username, u.is_admin, u.role, u.disabled, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ?`).get(sha256(token));
   if (!row) return null;
   if (row.expires_at < Date.now()) { deleteSession(db, token); return null; }
   if (row.disabled) return null;
-  return { id: row.id, username: row.username, isAdmin: !!row.is_admin };
+  return { id: row.id, username: row.username, role: row.role, isAdmin: !!row.is_admin };
 }
 
 export function parseCookies(header) {

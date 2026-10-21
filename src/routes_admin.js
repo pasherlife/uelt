@@ -12,7 +12,7 @@ export function registerAdminRoutes(router, app) {
   router.get('/api/admin/users', (ctx) => {
     requireAdmin(ctx);
     const rows = db.prepare(`
-      SELECT u.id, u.username, u.is_admin, u.disabled, u.created_at, u.last_seen_at, u.email, u.discord, u.telegram,
+      SELECT u.id, u.username, u.is_admin, u.role, u.disabled, u.created_at, u.last_seen_at, u.email, u.discord, u.telegram,
         (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id) AS projects,
         (SELECT COUNT(*) FROM edits e WHERE e.user_id = u.id) AS edits
       FROM users u ORDER BY u.username_lc`).all();
@@ -25,7 +25,7 @@ export function registerAdminRoutes(router, app) {
           if (f) where = { fileId: f.id, file: f.name, projectId: f.project_id, project: f.project };
         }
         return {
-          id: r.id, username: r.username, isAdmin: !!r.is_admin, disabled: !!r.disabled,
+          id: r.id, username: r.username, role: r.role, isAdmin: !!r.is_admin, disabled: !!r.disabled,
           createdAt: r.created_at, lastSeenAt: r.last_seen_at, projects: r.projects, edits: r.edits,
           email: r.email, discord: r.discord, telegram: r.telegram,
           online: where,
@@ -38,10 +38,10 @@ export function registerAdminRoutes(router, app) {
   router.get('/api/admin/users/:id/profile', (ctx) => {
     requireAdmin(ctx);
     const id = Number(ctx.params.id);
-    const u = db.prepare('SELECT id, username, email, discord, telegram, created_at, disabled, is_admin FROM users WHERE id = ?').get(id);
+    const u = db.prepare('SELECT id, username, email, discord, telegram, created_at, disabled, is_admin, role FROM users WHERE id = ?').get(id);
     if (!u) throw new HttpError(404, 'Користувача не знайдено.');
     return { profile: { id: u.id, username: u.username, email: u.email, discord: u.discord, telegram: u.telegram,
-      createdAt: u.created_at, disabled: !!u.disabled, isAdmin: !!u.is_admin } };
+      createdAt: u.created_at, disabled: !!u.disabled, isAdmin: !!u.is_admin, role: u.role } };
   });
 
   router.patch('/api/admin/users/:id/profile', async (ctx) => {
@@ -71,6 +71,9 @@ export function registerAdminRoutes(router, app) {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!user) throw new HttpError(404, 'Користувача не знайдено.');
 
+    // Власника не можна понизити, вимкнути чи видалити (спершу — передача власності).
+    if (user.role === 'owner' && id !== me.id) throw new HttpError(403, 'Власника порталу змінювати не можна.');
+    if (user.role === 'owner' && (body.isAdmin === false || body.disabled)) throw new HttpError(400, 'Власника не можна понизити чи вимкнути. Спершу передайте власність.');
     if (body.isAdmin !== undefined && !body.isAdmin && user.is_admin) {
       if (id === me.id) throw new HttpError(400, 'Не можна зняти адмін-права із самого себе.');
       if (adminCount() <= 1) throw new HttpError(400, 'Має лишитися хоча б один адміністратор.');
@@ -78,7 +81,9 @@ export function registerAdminRoutes(router, app) {
     if (body.disabled && id === me.id) throw new HttpError(400, 'Не можна вимкнути власний акаунт.');
     if (body.disabled && user.is_admin && adminCount() <= 1) throw new HttpError(400, 'Має лишитися хоча б один активний адміністратор.');
 
-    if (body.isAdmin !== undefined) db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(body.isAdmin ? 1 : 0, id);
+    if (body.isAdmin !== undefined && user.role !== 'owner') {
+      db.prepare('UPDATE users SET is_admin = ?, role = ? WHERE id = ?').run(body.isAdmin ? 1 : 0, body.isAdmin ? 'admin' : 'user', id);
+    }
     if (body.disabled !== undefined) {
       db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(body.disabled ? 1 : 0, id);
       if (body.disabled) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
@@ -98,6 +103,7 @@ export function registerAdminRoutes(router, app) {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!user) throw new HttpError(404, 'Користувача не знайдено.');
     if (id === me.id) throw new HttpError(400, 'Не можна видалити власний акаунт.');
+    if (user.role === 'owner') throw new HttpError(403, 'Власника порталу видалити не можна.');
     if (!user.disabled) throw new HttpError(409, 'Спершу вимкніть акаунт.');
     if (user.is_admin && adminCount() < 1) throw new HttpError(400, 'Має лишитися хоча б один адміністратор.');
     deleteUser(app, user, me.username);

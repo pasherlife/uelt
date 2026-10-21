@@ -107,6 +107,25 @@ CREATE INDEX IF NOT EXISTS edits_file ON edits(file_id, at);
 CREATE INDEX IF NOT EXISTS edits_user ON edits(user_id, at);
 `;
 
+/**
+ * Ролі (одноразова, ідемпотентна міграція за відсутністю стовпця):
+ *  users.role: найстаріший is_admin → owner, інші is_admin → admin, решта → user;
+ *  project_members.role: can_approve → reviewer, інакше translator.
+ * Стовпці is_admin і can_approve лишаються й синхронізуються (is_admin = owner|admin) для зворотної сумісності.
+ */
+function migrateRoles(db) {
+  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+    const owner = db.prepare('SELECT id FROM users WHERE is_admin = 1 ORDER BY id LIMIT 1').get();
+    db.exec("UPDATE users SET role = 'admin' WHERE is_admin = 1");
+    if (owner) db.prepare("UPDATE users SET role = 'owner' WHERE id = ?").run(owner.id);
+  }
+  if (!db.prepare('PRAGMA table_info(project_members)').all().some((c) => c.name === 'role')) {
+    db.exec("ALTER TABLE project_members ADD COLUMN role TEXT NOT NULL DEFAULT 'translator'");
+    db.exec("UPDATE project_members SET role = 'reviewer' WHERE can_approve = 1");
+  }
+}
+
 export function openDb(dbPath) {
   if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
@@ -119,6 +138,7 @@ export function openDb(dbPath) {
   if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'format')) {
     db.exec("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT 'locres'");
   }
+  migrateRoles(db);
   const userCols = new Set(db.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
   for (const col of ['email', 'discord', 'telegram']) {
     if (!userCols.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);

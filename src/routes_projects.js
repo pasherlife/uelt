@@ -4,6 +4,7 @@ import { importLocres, importCsvSource, sanitizeFileName, fileFormat, checkCv2 }
 import { MAX_CSV_BYTES } from './csv_import.js';
 import { sumStats } from './stats.js';
 import { tx } from './db.js';
+import { roleFromCanApprove } from './roles.js';
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 
@@ -131,8 +132,8 @@ export function registerProjectRoutes(router, app) {
     if (body.userId !== undefined) user = db.prepare('SELECT id FROM users WHERE id = ?').get(Number(body.userId));
     else user = db.prepare('SELECT id FROM users WHERE username_lc = ?').get(String(body.username ?? '').trim().replace(/^@/, '').toLowerCase());
     if (!user) throw new HttpError(404, 'Користувача не знайдено.');
-    db.prepare('INSERT OR IGNORE INTO project_members(project_id, user_id, can_approve, added_at) VALUES(?,?,?,?)')
-      .run(pid, user.id, body.canApprove ? 1 : 0, Date.now());
+    db.prepare('INSERT OR IGNORE INTO project_members(project_id, user_id, can_approve, role, added_at) VALUES(?,?,?,?,?)')
+      .run(pid, user.id, body.canApprove ? 1 : 0, roleFromCanApprove(body.canApprove), Date.now());
     return { userId: user.id };
   });
 
@@ -145,7 +146,9 @@ export function registerProjectRoutes(router, app) {
     const body = await readJson(ctx.req);
     tx(db, () => {
       if (body.canApprove !== undefined) {
-        db.prepare('UPDATE project_members SET can_approve = ? WHERE project_id = ? AND user_id = ?').run(body.canApprove ? 1 : 0, pid, uid);
+        // поки роль проєкту керується прапорцем: translator ⇄ reviewer (інші ролі не чіпаємо)
+        db.prepare(`UPDATE project_members SET can_approve = ?, role = CASE WHEN role IN ('translator','reviewer') THEN ? ELSE role END
+                    WHERE project_id = ? AND user_id = ?`).run(body.canApprove ? 1 : 0, roleFromCanApprove(body.canApprove), pid, uid);
       }
       if (body.fileIds !== undefined) {
         if (!Array.isArray(body.fileIds)) throw new HttpError(400, 'fileIds має бути масивом.');

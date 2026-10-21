@@ -13,7 +13,7 @@ function sessionCookie(token, secure, maxAgeSec) {
 
 export function registerAuthRoutes(router, app) {
   const { db, throttle } = app;
-  const publicUser = (u) => (u ? { id: u.id, username: u.username, isAdmin: !!u.isAdmin } : null);
+  const publicUser = (u) => (u ? { id: u.id, username: u.username, role: u.role, isAdmin: !!u.isAdmin } : null);
   const profileOf = (id) => {
     const r = db.prepare('SELECT username, email, discord, telegram, created_at FROM users WHERE id = ?').get(id);
     return { username: r.username, email: r.email, discord: r.discord, telegram: r.telegram, createdAt: r.created_at };
@@ -34,17 +34,17 @@ export function registerAuthRoutes(router, app) {
 
     const userId = tx(db, () => {
       if (db.prepare('SELECT 1 FROM users WHERE username_lc = ?').get(lc)) throw new HttpError(409, 'Такий нік або емейл уже зайнятий.');
-      // Перший зареєстрований акаунт стає адміністратором.
+      // Перший зареєстрований акаунт стає власником порталу.
       const isFirst = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
-      const r = db.prepare('INSERT INTO users(username, username_lc, password, is_admin, created_at) VALUES(?,?,?,?,?)')
-        .run(username, lc, password, isFirst ? 1 : 0, Date.now());
+      const r = db.prepare('INSERT INTO users(username, username_lc, password, is_admin, role, created_at) VALUES(?,?,?,?,?,?)')
+        .run(username, lc, password, isFirst ? 1 : 0, isFirst ? 'owner' : 'user', Date.now());
       return Number(r.lastInsertRowid);
     });
 
     const token = createSession(db, userId);
-    const user = db.prepare('SELECT id, username, is_admin FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT id, username, is_admin, role FROM users WHERE id = ?').get(userId);
     notifyRegistered(app, user);
-    return new RawResponse(200, { user: { id: user.id, username: user.username, isAdmin: !!user.is_admin } },
+    return new RawResponse(200, { user: { id: user.id, username: user.username, role: user.role, isAdmin: !!user.is_admin } },
       { 'Set-Cookie': sessionCookie(token, ctx.secure, SESSION_DAYS * 86400) });
   });
 
@@ -62,7 +62,7 @@ export function registerAuthRoutes(router, app) {
     if (row.disabled) throw new HttpError(403, 'Акаунт вимкнено адміністратором.');
     throttle.ok(key);
     const token = createSession(db, row.id);
-    return new RawResponse(200, { user: { id: row.id, username: row.username, isAdmin: !!row.is_admin } },
+    return new RawResponse(200, { user: { id: row.id, username: row.username, role: row.role, isAdmin: !!row.is_admin } },
       { 'Set-Cookie': sessionCookie(token, ctx.secure, SESSION_DAYS * 86400) });
   });
 
@@ -109,6 +109,7 @@ export function registerAuthRoutes(router, app) {
     const body = await readJson(ctx.req);
     const row = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
     if (!(await verifyPassword(String(body.password ?? ''), row.password))) throw new HttpError(403, 'Пароль неправильний.');
+    if (row.role === 'owner') throw new HttpError(400, 'Власник не може видалити акаунт. Спершу передайте власність.');
     if (row.is_admin && db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1 AND disabled = 0 AND id != ?').get(user.id).n < 1) {
       throw new HttpError(400, 'Ви єдиний адміністратор. Спершу призначте іншого.');
     }
