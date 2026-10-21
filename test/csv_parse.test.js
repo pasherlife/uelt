@@ -61,7 +61,7 @@ test('parseCsvTranslations: автовизначення з байтів і ру
   const tab = parseCsvTranslations(Buffer.from('﻿key\ttranslation\nMenu::Play\tГрати', 'utf16le'));
   assert.equal(tab.delimiter, '\t');
   assert.equal(tab.encoding, 'utf-16le');
-  assert.deepEqual(tab.entries, [{ key: 'Menu::Play', translation: 'Грати', csvRow: 2 }]);
+  assert.deepEqual(tab.entries, [{ key: 'Menu::Play', translation: 'Грати', csvRow: 2, csvStatus: null }]);
 
   const win = parseCsvTranslations(cp1251('ключ;переклад\nMenu::Play;Грати'));
   assert.equal(win.encoding, 'windows-1251');

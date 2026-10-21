@@ -1,13 +1,19 @@
 import { h, fmt, toast, askDialog } from './util.js';
 import { api, post } from './api.js';
+import { importCsvFile } from './csv_import.js';
 
-/** Вибір .locres з перекладом → звіт → підтвердження з параметрами → застосування. */
+/**
+ * Єдиний імпорт перекладу: .locres або .csv (обробник за розширенням).
+ * .locres → звіт → підтвердження з параметрами → застосування; .csv → попередній перегляд із діями для кожного рядка.
+ */
 export function pickAndImportTranslations({ fileId, fileName, canApprove, onDone }) {
-  const input = h('input', { type: 'file', accept: '.locres', class: 'hidden' });
+  const input = h('input', { type: 'file', accept: '.locres,.csv,.tsv,.txt,text/csv', class: 'hidden' });
   input.addEventListener('change', async () => {
     const f = input.files[0];
     if (!f) return;
     try {
+      if (/\.(csv|tsv|txt)$/i.test(f.name)) { await importCsvFile(f, { fileId, fileName, canApprove, onDone }); return; }
+      if (!/\.locres$/i.test(f.name)) { toast('Підтримуються файли .locres і .csv.', true); return; }
       const buf = await f.arrayBuffer();
       const base = `/api/files/${fileId}/translations`;
       const rep = await api('POST', base, buf);

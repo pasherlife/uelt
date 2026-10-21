@@ -94,7 +94,7 @@ export async function projectView(root, projectId) {
     const open = h('a', { class: 'btn primary', href: `#/f/${f.id}` }, f.canEdit ? 'Відкрити' : 'Переглянути');
     const canImport = f.canEdit && !data.project.archived;
     const more = menu([
-      canImport && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: admin || !!data.me?.canApprove, onDone: reload }) },
+      canImport && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: admin || !!data.me?.canApprove, onDone: reload }) },
       admin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId: f.id, fileName: base, sourceFormat: f.format }) },
       admin && !data.project.archived && { label: 'Оновити оригінал…', onclick: () => updateOriginal(f) },
       admin && !data.project.archived && { sep: true },

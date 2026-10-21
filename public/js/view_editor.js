@@ -2,7 +2,6 @@ import { h, clear, fmt, pct, plural, toast, debounce, menu, avatar } from './uti
 import { get, post, patch, api, ApiError } from './api.js';
 import { topbar, session } from './app.js';
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
-import { pickAndImportCsv } from './csv_import.js';
 import { openExportDialog } from './export_dialog.js';
 import { createStrip } from './strip.js';
 
@@ -100,8 +99,7 @@ export async function editorView(root, fileId) {
   const reloadAll = () => { st.cache.clear(); st.gen++; resetList(); };
   const moreMenu = menu([
     perms.canEdit && { label: 'Змінити статус для всіх за фільтром…', onclick: () => bulkAll() },
-    perms.canEdit && { label: 'Завантажити переклад…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
-    perms.canEdit && { label: 'Імпортувати CSV…', onclick: () => pickAndImportCsv({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
+    perms.canEdit && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
     isAdmin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId, fileName: base, sourceFormat: file.format }) },
     isAdmin && !perms.archived && { sep: true },
     isAdmin && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },

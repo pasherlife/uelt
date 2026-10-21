@@ -111,3 +111,25 @@ test('API: CSV у windows-1251 завантажується як джерело'
   assert.equal(rows[0].source, 'Привіт');
   assert.ok(parseLocres); // імпорт парсера locres не зламаний
 });
+
+test('імпорт перекладу: .locres з перекладом у файл із CSV-джерела', async (t) => {
+  const { buildLocres } = await import('../src/locres.js');
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const owner = client(srv.base);
+  await owner.post('/api/auth/register', { username: 'owner_x', password: 'secret1' });
+  const pid = (await owner.post('/api/projects', { name: 'Cross' })).data.id;
+  const { loc } = sampleLocres();
+  const csv = 'key,source\nMenu::Play,Play\nMenu::Quit,Quit game\nMenu::Dup,Same text\nMenu::Dup[1],Same text';
+  const fileId = (await owner.call('POST', `/api/projects/${pid}/files?name=x.csv`, Buffer.from(csv))).data.id;
+
+  const translated = { ...loc, entries: loc.entries.map((e) => (e.key === 'Play' ? { ...e, value: 'Грати' } : e.key === 'Quit' ? { ...e, value: 'Вийти з гри' } : e)) };
+  const buf = buildLocres(translated);
+  const rep = await owner.call('POST', `/api/files/${fileId}/translations?apply=1`, buf);
+  assert.equal(rep.status, 200, JSON.stringify(rep.data));
+  assert.equal(rep.data.applied, 2);
+  assert.equal(rep.data.unknownKeys, 4); // рядки locres, яких немає в CSV-файлі
+  const rows = (await owner.get(`/api/files/${fileId}/rows?limit=50`)).data.rows;
+  assert.equal(rows.find((r) => r.key === 'Menu::Play').translation, 'Грати');
+  assert.equal(rows.find((r) => r.key === 'Menu::Play').status, 1);
+});

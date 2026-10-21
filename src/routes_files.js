@@ -276,7 +276,7 @@ export function registerFileRoutes(router, app) {
     return { parsed: parseCsvTranslations(input, { delimiter, unguard }), actions: body.actions ?? {} };
   }
 
-  function csvPreview(fileId, parsed) {
+  function csvPreview(fileId, parsed, canApprove = false) {
     const rows = db.prepare('SELECT id, row_key, source, translation, status FROM rows WHERE file_id = ?').all(fileId);
     const byKey = new Map(rows.map((r) => [r.row_key, r]));
     const items = parsed.entries.map((entry) => {
@@ -293,6 +293,8 @@ export function registerFileRoutes(router, app) {
     return {
       delimiter: delimiterName(parsed.delimiter),
       encoding: parsed.encoding,
+      hasStatus: !!parsed.hasStatus,
+      statusApplies: !!parsed.hasStatus && canApprove,
       total: items.length,
       matched: items.filter((x) => x.rowId).length,
       unknown: items.filter((x) => x.state === 'unknown').length,
@@ -308,7 +310,7 @@ export function registerFileRoutes(router, app) {
     const a = fileAccess(db, Number(ctx.params.id), user);
     if (!a.canEdit) throw new HttpError(403, 'У вас немає доступу до редагування цього файлу.');
     const { parsed } = await readCsvRequest(ctx);
-    return csvPreview(a.file.id, parsed);
+    return csvPreview(a.file.id, parsed, a.canApprove);
   });
 
   router.post('/api/files/:id/csv-import', async (ctx) => {
@@ -317,7 +319,7 @@ export function registerFileRoutes(router, app) {
     if (!a.canEdit) throw new HttpError(403, 'У вас немає доступу до редагування цього файлу.');
     const { parsed, actions } = await readCsvRequest(ctx);
     if (!actions || typeof actions !== 'object' || Array.isArray(actions)) throw new HttpError(400, 'Некоректні дії імпорту.');
-    const preview = csvPreview(a.file.id, parsed);
+    const preview = csvPreview(a.file.id, parsed, a.canApprove);
     const allowed = new Set(['skip', 'replace', 'fill']);
     for (const item of preview.items) {
       const action = actions[item.key] ?? item.defaultAction;
@@ -339,15 +341,16 @@ export function registerFileRoutes(router, app) {
         if (row.status === 2 && !a.canApprove) throw new HttpError(403, `Затверджений рядок «${item.key}» може змінити лише рецензент.`);
         const value = item.translation;
         if (value === '' || value === row.source || value === row.translation) continue;
-        todo.push({ row, value });
+        todo.push({ row, value, csvStatus: item.csvStatus });
       }
       if (!todo.length) return 0;
       const rev = bumpRev(a.file.id);
       const now = Date.now();
       const upd = db.prepare("UPDATE rows SET translation = ?, tr_lc = ?, status = ?, ver = ver + 1, rev = ?, updated_by = ?, updated_at = ? WHERE id = ?");
       const log = db.prepare("INSERT INTO edits(file_id, row_id, user_id, at, old_translation, new_translation, old_status, new_status) VALUES(?,?,?,?,?,?,?,?)");
-      for (const { row, value } of todo) {
-        const status = value === '' || value === row.source ? 0 : 1;
+      for (const { row, value, csvStatus } of todo) {
+        // статус із колонки status береться лише з правом затверджувати; інакше — «На вичитку»
+        const status = value === '' || value === row.source ? 0 : (a.canApprove && (csvStatus === 1 || csvStatus === 2) ? csvStatus : 1);
         upd.run(value, value.toLowerCase(), status, rev, user.id, now, row.id);
         log.run(a.file.id, row.id, user.id, now, row.translation, value, row.status, status);
       }

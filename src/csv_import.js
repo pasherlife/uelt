@@ -129,6 +129,7 @@ export function parseCsvTranslations(input, options = {}) {
   if (keyIndex < 0 || trIndex < 0 || keyIndex === trIndex) {
     throw new HttpError(400, 'CSV повинен містити стовпці key і translation (або «ключ» і «переклад»).');
   }
+  const statusIndex = headers.findIndex((h) => STATUS_NAMES.includes(h));
   const seen = new Set();
   const entries = [];
   for (let i = 1; i < records.length; i++) {
@@ -140,9 +141,9 @@ export function parseCsvTranslations(input, options = {}) {
     if (seen.has(key)) throw new HttpError(400, `У CSV повторюється ключ «${key}» (рядок ${i + 1}).`);
     if (translation.length > 50_000) throw new HttpError(400, `Переклад у рядку ${i + 1} задовгий.`);
     seen.add(key);
-    entries.push({ key, translation, csvRow: i + 1 });
+    entries.push({ key, translation, csvRow: i + 1, csvStatus: statusIndex >= 0 ? parseStatusCell(cells[statusIndex], i + 1) : null });
   }
-  return { delimiter, encoding, entries };
+  return { delimiter, encoding, hasStatus: statusIndex >= 0, entries };
 }
 
 /** Знімає захисний апостроф, доданий експортом у «безпечному режимі для Excel» (перед = + - @ або табуляцією). */
