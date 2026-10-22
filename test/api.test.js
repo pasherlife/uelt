@@ -67,7 +67,7 @@ test('лише адмін створює проєкти й завантажує 
   projectId = r.data.id;
 
   const { buffer } = sampleLocres();
-  assert.equal((await upload(anna, projectId, 'Game/uk/Game.locres', buffer)).status, 403);
+  assert.equal((await upload(anna, projectId, 'Game/uk/Game.locres', buffer)).status, 404, 'сторонній не бачить проєкт навіть для запису');
   r = await upload(adminC, projectId, 'Game/uk/Game.locres', buffer);
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.rowCount, 8);
@@ -106,6 +106,8 @@ test('без галочки доступу до файлу редагувати 
   const p = await anna.get(`/api/projects/${projectId}`);
   assert.equal(p.data.files.find((f) => f.id === fileA).canEdit, false);
   assert.equal(p.data.members, undefined, 'список учасників лише для адміна');
+  // учасник-перекладач бачить проєкт, але керувати ним не може: 403, а не 404
+  assert.equal((await upload(anna, projectId, 'x.locres', sampleLocres().buffer)).status, 403);
 });
 
 test('адмін видає доступ галочками: Анна — файл A, Борис — файли A і B', async () => {
@@ -267,7 +269,8 @@ test('експорт збирає locres із перекладами; порож
   assert.equal(val('Quit'), 'Quit game');
   assert.equal(val('Hello'), 'Hello, {Name}! You have <b>3</b> new messages.');
   assert.equal(parsed.entries.length, 8);
-  assert.equal((await outsider.rawGet(`/api/files/${fileA}/export`)).status, 403);
+  assert.equal((await outsider.rawGet(`/api/files/${fileA}/export`)).status, 404, 'сторонній не бачить файл');
+  assert.equal((await anna.rawGet(`/api/files/${fileA}/export`)).status, 403, 'перекладач не скачує');
 });
 
 test('адмін: захист останнього адміна, вимкнення акаунта, скидання пароля', async () => {
@@ -375,8 +378,8 @@ test('оновлення оригіналу: переклади перенося
   // експорт валідний і містить переклад
   const exp = parseLocres(Buffer.from(await (await adminC.rawGet(`/api/files/${fid}/export`)).arrayBuffer()));
   assert.ok(exp.entries.some((e) => e.value === 'Грати'));
-  // не-адмін не може оновлювати
-  assert.equal((await anna.call('POST', `/api/files/${fid}/update`, next)).status, 403);
+  // не-адмін не може оновлювати (Анна на цей момент уже не учасниця проєкту → 404; права учасників перевіряє roles.test.js)
+  assert.equal((await anna.call('POST', `/api/files/${fid}/update`, next)).status, 404);
 });
 
 test('CV2: шифрований locres розшифровується при імпорті і шифрується назад при експорті', async () => {

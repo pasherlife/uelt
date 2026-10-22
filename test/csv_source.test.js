@@ -68,7 +68,9 @@ test('API: завантаження .csv у проєкт, рядки, стату
   assert.equal((await owner.call('POST', url('bad.csv'), Buffer.from('key,translation\nA,x'))).status, 400);
   assert.equal((await owner.call('POST', url('bad2.csv', '&cv2=release'), Buffer.from(csv))).status, 400);
   assert.equal((await owner.call('POST', url('notes.txt'), Buffer.from(csv))).status, 400);
-  assert.equal((await member.call('POST', url('x.csv'), Buffer.from(csv))).status, 403);
+  assert.equal((await member.call('POST', url('x.csv'), Buffer.from(csv))).status, 404);  // сторонній
+  await owner.post(`/api/projects/${pid}/members`, { username: 'member_src' });
+  assert.equal((await member.call('POST', url('x.csv'), Buffer.from(csv))).status, 403);  // учасник-перекладач
 
   // .locres у тому ж проєкті працює як раніше
   const loc = await owner.call('POST', url('game.locres'), sampleLocres().buffer);

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { HttpError, RawResponse, readJson, readBody, contentDisposition } from './http.js';
 import { updateLocres, importTranslations } from './importer.js';
-import { requireUser, requireAdmin, fileAccess } from './perm.js';
+import { requireUser, fileAccess, requireFileCan } from './perm.js';
 import { tx } from './db.js';
 import { parseCsvTranslations, delimiterName, normalizeDelimiter, MAX_CSV_BYTES } from './csv_import.js';
 import { buildCsv, buildLocresExport, EXPORT_SCOPES } from './exporter.js';
@@ -94,7 +94,10 @@ export function registerFileRoutes(router, app) {
     const a = fileAccess(db, Number(ctx.params.id), user);
     return {
       file: { format: a.file.format, cv2: JSON.parse(a.file.meta).cv2 ?? null, id: a.file.id, name: a.file.name, projectId: a.project.id, project: a.project.name, rowCount: a.file.row_count, rev: a.file.rev, version: a.file.version },
-      perms: { canEdit: a.canEdit, canApprove: a.canApprove, archived: !!a.project.archived },
+      perms: {
+        canEdit: a.canEdit, canApprove: a.canApprove, canImport: a.canImport, archived: !!a.project.archived, role: a.role,
+        canExport: a.can('file.export'), canUpdate: a.can('file.update'), canClear: a.can('file.clear'),
+      },
       stats: stats.get(a.file.id, a.file.rev),
       online: presence.list(a.file.id).map((e) => ({ userId: e.userId, username: e.username, rowPos: e.rowPos })),
     };
@@ -238,8 +241,8 @@ export function registerFileRoutes(router, app) {
    * locres із CSV-джерела: version=0|1|2.
    */
   router.get('/api/files/:id/export', (ctx) => {
-    const user = requireAdmin(ctx);
-    const a = fileAccess(db, Number(ctx.params.id), user);
+    const user = requireUser(ctx);
+    const a = requireFileCan(db, Number(ctx.params.id), user, 'file.export');
     const format = ctx.query.get('format') || a.file.format;
     if (format !== 'locres' && format !== 'csv') throw new HttpError(400, 'Формат експорту: locres або csv.');
     const origName = path.posix.basename(a.file.name);
@@ -308,7 +311,7 @@ export function registerFileRoutes(router, app) {
   router.post('/api/files/:id/csv-preview', async (ctx) => {
     const user = requireUser(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
-    if (!a.canEdit) throw new HttpError(403, 'У вас немає доступу до редагування цього файлу.');
+    if (!a.canImport) throw new HttpError(403, 'У вас немає права імпортувати переклад у цей файл.');
     const { parsed } = await readCsvRequest(ctx);
     return csvPreview(a.file.id, parsed, a.canApprove);
   });
@@ -316,7 +319,7 @@ export function registerFileRoutes(router, app) {
   router.post('/api/files/:id/csv-import', async (ctx) => {
     const user = requireUser(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
-    if (!a.canEdit) throw new HttpError(403, 'У вас немає доступу до редагування цього файлу.');
+    if (!a.canImport) throw new HttpError(403, 'У вас немає права імпортувати переклад у цей файл.');
     const { parsed, actions } = await readCsvRequest(ctx);
     if (!actions || typeof actions !== 'object' || Array.isArray(actions)) throw new HttpError(400, 'Некоректні дії імпорту.');
     const preview = csvPreview(a.file.id, parsed, a.canApprove);
@@ -365,7 +368,7 @@ export function registerFileRoutes(router, app) {
   router.post('/api/files/:id/translations', async (ctx) => {
     const user = requireUser(ctx);
     const a = fileAccess(db, Number(ctx.params.id), user);
-    if (!a.canEdit) throw new HttpError(403, 'У вас немає доступу до редагування цього файлу.');
+    if (!a.canImport) throw new HttpError(403, 'У вас немає права імпортувати переклад у цей файл.');
     const buffer = await readBody(ctx.req, 256 * 1024 * 1024);
     const apply = ctx.query.get('apply') === '1';
     const rep = importTranslations(db, {
@@ -378,9 +381,8 @@ export function registerFileRoutes(router, app) {
 
   // Оновлення оригіналу (адмін): ?apply=1 застосувати, інакше лише звіт.
   router.post('/api/files/:id/update', async (ctx) => {
-    const user = requireAdmin(ctx);
-    const a = fileAccess(db, Number(ctx.params.id), user);
-    if (a.project.archived) throw new HttpError(409, 'Проєкт архівований.');
+    const user = requireUser(ctx);
+    const a = requireFileCan(db, Number(ctx.params.id), user, 'file.update');
     const buffer = await readBody(ctx.req, a.file.format === 'csv' ? MAX_CSV_BYTES : 256 * 1024 * 1024);
     const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1', delimiter: ctx.query.get('delimiter') ?? 'auto', unguard: ctx.query.get('safe') === '1' });
     if (ctx.query.get('apply') === '1') { stats.drop(a.file.id); strips.drop(a.file.id); }
@@ -389,9 +391,8 @@ export function registerFileRoutes(router, app) {
 
   // Очищення всього стовпця перекладу у файлі (лише адмін). Кожна зміна пишеться в журнал правок.
   router.post('/api/files/:id/clear-translations', (ctx) => {
-    const user = requireAdmin(ctx);
-    const a = fileAccess(db, Number(ctx.params.id), user);
-    if (a.project.archived) throw new HttpError(409, 'Проєкт архівований.');
+    const user = requireUser(ctx);
+    const a = requireFileCan(db, Number(ctx.params.id), user, 'file.clear');
     const cleared = tx(db, () => {
       const rows = db.prepare("SELECT id, translation, status FROM rows WHERE file_id = ? AND (translation != '' OR status != 0)").all(a.file.id);
       if (rows.length === 0) return 0;
@@ -407,8 +408,8 @@ export function registerFileRoutes(router, app) {
   });
 
   router.delete('/api/files/:id', (ctx) => {
-    requireAdmin(ctx);
-    const a = fileAccess(db, Number(ctx.params.id), ctx.user);
+    const user = requireUser(ctx);
+    const a = requireFileCan(db, Number(ctx.params.id), user, 'file.delete');
     stats.drop(a.file.id); strips.drop(a.file.id);
     db.prepare('DELETE FROM files WHERE id = ?').run(a.file.id);
     return { ok: true };
