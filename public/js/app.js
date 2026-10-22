@@ -6,6 +6,7 @@ import { projectView } from './view_project.js';
 import { editorView } from './view_editor.js';
 import { adminView } from './view_admin.js';
 import { profileView } from './view_profile.js';
+import { roleLabel } from './roles.js';
 
 initTheme();
 
@@ -32,6 +33,7 @@ export function topbar(crumbs = []) {
       c.href ? h('a', { href: c.href }, c.label) : h('span', { class: 'here' }, c.label)))),
     h('span', { class: 'spacer' }),
     u && h('div', { class: 'who' },
+      u.isAdmin && h('span', { class: 'pill admin', title: 'Ваша роль на порталі' }, roleLabel(u.role)),
       u.isAdmin && h('a', { class: 'top-link', href: '#/admin' }, 'Адмінка'),
       userMenu));
 }

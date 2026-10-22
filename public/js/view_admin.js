@@ -1,12 +1,17 @@
 import { h, clear, fmt, ago, dateTime, askDialog, toast } from './util.js';
-import { get, patch, put, del } from './api.js';
+import { get, post, patch, put, del } from './api.js';
 import { session, topbar, navigate } from './app.js';
+import { roleLabel } from './roles.js';
 
 const STATUS = ['без статусу', 'на вичитку', 'затверджено'];
 
 export async function adminView(root) {
   if (!session.user.isAdmin) { navigate('#/'); return {}; }
   let tab = 'users';
+  const me = session.user;
+  const isOwner = me.role === 'owner';
+  /** Власник керує всіма; адмін — лише звичайними користувачами. Сервер перевіряє те саме. */
+  const canManage = (u) => u.id !== me.id && (isOwner || u.role === 'user');
   const body = h('div');
   let timer;
 
@@ -30,7 +35,7 @@ export async function adminView(root) {
         } catch (e) { msg.textContent = e.message; save.disabled = false; }
       } }, 'Зберегти зміни');
       dlg.append(h('h3', null, `Кабінет: ${profile.username}`),
-        h('p', { class: 'muted', style: 'margin-bottom:16px' }, `ID ${profile.id} · ${profile.isAdmin ? 'адміністратор' : 'користувач'} · ${profile.disabled ? 'акаунт вимкнено' : 'акаунт активний'}`),
+        h('p', { class: 'muted', style: 'margin-bottom:16px' }, `ID ${profile.id} · ${roleLabel(profile.role)} · ${profile.disabled ? 'акаунт вимкнено' : 'акаунт активний'}`),
         field('Нік у UELT', username), field('Емейл', email), field('Discord', discord), field('Telegram', telegram), msg,
         h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => dlg.close() }, 'Скасувати'), save));
       dlg.addEventListener('close', () => dlg.remove());
@@ -38,11 +43,26 @@ export async function adminView(root) {
     } catch (e) { toast(e.message, true); }
   }
 
+  /** Передача власності: потрібен пароль власника; після цього обидва користувачі входять заново. */
+  async function transferOwnership(u) {
+    const v = await askDialog({
+      title: `Передати власність порталу: ${u.username}`, confirmText: 'Передати власність',
+      note: `${u.username} стане єдиним власником порталу, а ви — адміном. Сеанси обох буде завершено, потрібно буде увійти знову. Для підтвердження введіть свій пароль.`,
+      fields: [{ name: 'password', label: 'Ваш пароль', type: 'password' }],
+    });
+    if (!v) return;
+    try {
+      await post('/api/admin/transfer-ownership', { userId: u.id, password: v.password });
+      toast(`Власність передано: ${u.username}`);
+      setTimeout(() => location.reload(), 800);
+    } catch (e) { toast(e.message, true); }
+  }
+
   async function usersTab() {
     const { users } = await get('/api/admin/users');
-    const settings = await get('/api/admin/settings');
+    const settings = isOwner ? await get('/api/admin/settings') : null; // налаштування порталу — лише власник
     const rows = users.map((u) => h('tr', null,
-      h('td', { 'data-label': 'Користувач' }, h('strong', null, u.username), ' ', u.isAdmin && h('span', { class: 'pill admin' }, 'адмін'), ' ', u.disabled && h('span', { class: 'pill off' }, 'вимкнено')),
+      h('td', { 'data-label': 'Користувач' }, h('strong', null, u.username), ' ', u.isAdmin && h('span', { class: 'pill admin' }, roleLabel(u.role)), ' ', u.disabled && h('span', { class: 'pill off' }, 'вимкнено')),
       h('td', { 'data-label': 'Зараз / був' }, u.online
         ? h('span', null, h('span', { class: 'pill on' }, 'у файлі'), ' ', h('a', { href: `#/p/${u.online.projectId}` }, u.online.project), ' / ', u.online.file.split('/').pop())
         : h('span', { class: 'dim' }, ago(u.lastSeenAt))),
@@ -50,38 +70,43 @@ export async function adminView(root) {
       h('td', { class: 'num', 'data-label': 'Проєктів' }, fmt(u.projects)),
       h('td', { class: 'num', 'data-label': 'Правок' }, fmt(u.edits)),
       h('td', null, h('div', { class: 'actions' },
-        h('button', { class: 'btn small', onclick: () => openUserCabinet(u) }, 'Кабінет'),
-        h('button', {
+        (canManage(u) || u.id === me.id) && h('button', { class: 'btn small', onclick: () => openUserCabinet(u) }, 'Кабінет'),
+        isOwner && u.role !== 'owner' && h('button', {
           class: 'btn small', onclick: async () => {
             try { await patch(`/api/admin/users/${u.id}`, { isAdmin: !u.isAdmin }); render(); } catch (e) { toast(e.message, true); }
           },
         }, u.isAdmin ? 'Зняти адміна' : 'Зробити адміном'),
-        h('button', {
+        canManage(u) && h('button', {
           class: 'btn small', onclick: async () => {
             const v = await askDialog({ title: `Новий пароль для ${u.username}`, confirmText: 'Змінити', note: 'Усі сеанси цього користувача буде завершено.', fields: [{ name: 'password', label: 'Пароль (від 6 символів)', type: 'password' }] });
             if (!v) return;
             try { await patch(`/api/admin/users/${u.id}`, { password: v.password }); toast('Пароль змінено'); } catch (e) { toast(e.message, true); }
           },
         }, 'Пароль'),
-        h('button', {
+        canManage(u) && h('button', {
           class: 'btn small' + (u.disabled ? '' : ' danger'), onclick: async () => {
             if (!u.disabled && !confirm(`Вимкнути акаунт ${u.username}? Він не зможе увійти.`)) return;
             try { await patch(`/api/admin/users/${u.id}`, { disabled: !u.disabled }); render(); } catch (e) { toast(e.message, true); }
           },
         }, u.disabled ? 'Увімкнути' : 'Вимкнути'),
-        u.disabled && h('button', {
+        isOwner && u.id !== me.id && !u.disabled && h('button', { class: 'btn small', onclick: () => transferOwnership(u) }, 'Передати власність…'),
+        canManage(u) && u.disabled && h('button', {
           class: 'btn small danger', onclick: async () => {
             if (!confirm(`Видалити акаунт ${u.username} остаточно? Його правки лишаться в історії без автора.`)) return;
             try { await del(`/api/admin/users/${u.id}`); toast('Акаунт видалено'); render(); } catch (e) { toast(e.message, true); }
           },
         }, 'Видалити')))));
 
-    const reg = h('input', { type: 'checkbox', checked: settings.registration });
-    reg.addEventListener('change', async () => {
-      try { await put('/api/admin/settings', { registration: reg.checked }); toast(reg.checked ? 'Реєстрацію увімкнено' : 'Реєстрацію вимкнено'); } catch (e) { toast(e.message, true); reg.checked = !reg.checked; }
-    });
+    let reg = null;
+    if (settings) {
+      reg = h('input', { type: 'checkbox', checked: settings.registration });
+      reg.addEventListener('change', async () => {
+        try { await put('/api/admin/settings', { registration: reg.checked }); toast(reg.checked ? 'Реєстрацію увімкнено' : 'Реєстрацію вимкнено'); } catch (e) { toast(e.message, true); reg.checked = !reg.checked; }
+      });
+    }
     return h('div', null,
-      h('label', { class: 'check', style: 'margin-bottom:18px' }, reg, 'Дозволити нову реєстрацію (без проєктів нові акаунти нічого не бачать)'),
+      reg && h('label', { class: 'check', style: 'margin-bottom:18px' }, reg, 'Дозволити нову реєстрацію (без проєктів нові акаунти нічого не бачать)'),
+      !isOwner && h('p', { class: 'dim', style: 'margin-bottom:14px;font-size:13px' }, 'Налаштування порталу, призначення адмінів і передача власності доступні лише власнику. Ви можете керувати звичайними користувачами.'),
       h('table', { class: 'plain' },
         h('thead', null, h('tr', null, h('th', null, 'Користувач'), h('th', null, 'Зараз / був'), h('th', null, 'Контакти'), h('th', null, 'Проєктів'), h('th', null, 'Правок'), h('th', null, ''))),
         h('tbody', null, rows)));

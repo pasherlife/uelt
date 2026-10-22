@@ -1,10 +1,11 @@
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
 import { openExportDialog } from './export_dialog.js';
-import { h, clear, fmt, pct, plural, ago, askDialog, toast, debounce, menu, avatar } from './util.js';
+import { h, clear, fmt, pct, plural, ago, dateTime, askDialog, toast, debounce, menu, avatar } from './util.js';
 import { progressBar } from './view_projects.js';
 import { get, post, patch, del, api } from './api.js';
-import { session, topbar, navigate } from './app.js';
+import { topbar, navigate } from './app.js';
 import { createStrip } from './strip.js';
+import { PROJECT_ROLES, ROLE_HINTS, roleLabel } from './roles.js';
 
 function splitName(name) {
   const i = name.lastIndexOf('/');
@@ -13,7 +14,7 @@ function splitName(name) {
 
 export async function projectView(root, projectId) {
   let data = await get(`/api/projects/${projectId}`);
-  const admin = session.user.isAdmin;
+  const caps = () => data.me?.caps ?? {};
   let tab = 'files';
   let timer = null;
   let destroyed = false;
@@ -38,9 +39,10 @@ export async function projectView(root, projectId) {
       h('section', { class: 'hero' },
         h('div', { class: 'hero-top' },
           h('div', { class: 'grow' },
-            h('h1', null, p.name, p.archived && h('span', { class: 'pill', style: 'margin-left:12px;vertical-align:middle' }, 'архів')),
+            h('h1', null, p.name, p.archived && h('span', { class: 'pill', style: 'margin-left:12px;vertical-align:middle' }, 'архів'),
+              h('span', { class: 'pill', style: 'margin-left:8px;vertical-align:middle', title: ROLE_HINTS[data.me?.role] ?? 'Ваша роль у проєкті' }, roleLabel(data.me?.role))),
             p.description && h('p', { class: 'sub' }, p.description)),
-          admin && h('div', { class: 'row-actions' },
+          caps().manageProject && h('div', { class: 'row-actions' },
             h('button', { class: 'btn', onclick: editProject }, 'Налаштування'),
             menu([{ label: 'Видалити проєкт…', danger: true, onclick: removeProject }], { label: 'Інші дії з проєктом' }))),
         h('div', { class: 'hero-figs' },
@@ -92,14 +94,16 @@ export async function projectView(root, projectId) {
     strip.set(f.strip, f.rowCount, f.online.map((o) => ({ username: o.username, rowPos: o.rowPos })));
     const s = f.stats;
     const open = h('a', { class: 'btn primary', href: `#/f/${f.id}` }, f.canEdit ? 'Відкрити' : 'Переглянути');
-    const canImport = f.canEdit && !data.project.archived;
+    const canImport = f.canImport && !data.project.archived;
+    const archived = data.project.archived;
+    const c = caps();
     const more = menu([
-      canImport && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: admin || !!data.me?.canApprove, onDone: reload }) },
-      admin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId: f.id, fileName: base, sourceFormat: f.format }) },
-      admin && !data.project.archived && { label: 'Оновити оригінал…', onclick: () => updateOriginal(f) },
-      admin && !data.project.archived && { sep: true },
-      admin && !data.project.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations(f, reload) },
-      admin && { label: 'Видалити файл…', danger: true, onclick: async () => {
+      canImport && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId: f.id, fileName: f.name, canApprove: !!data.me?.canApprove && f.canEdit, onDone: reload }) },
+      c.export && { label: 'Скачати…', onclick: () => openExportDialog({ fileId: f.id, fileName: base, sourceFormat: f.format }) },
+      c.update && !archived && { label: 'Оновити оригінал…', onclick: () => updateOriginal(f) },
+      (c.clear && !archived || c.delete) && { sep: true },
+      c.clear && !archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations(f, reload) },
+      c.delete && { label: 'Видалити файл…', danger: true, onclick: async () => {
         if (!confirm(`Видалити файл «${f.name}» разом з усіма перекладами? Це не можна скасувати.`)) return;
         try { await del(`/api/files/${f.id}`); await reload(); } catch (e) { toast(e.message, true); }
       } },
@@ -111,11 +115,11 @@ export async function projectView(root, projectId) {
           h('span', { class: 'base' }, base),
           f.format === 'csv' && h('span', { class: 'pill', title: 'Джерело — CSV' }, 'CSV')),
         h('div', { class: 'file-meta' },
-          !f.canEdit && h('span', { class: 'pill ro', title: 'Адміністратор не надав вам доступ до редагування цього файлу' }, 'лише перегляд'),
+          !f.canEdit && h('span', { class: 'pill ro', title: data.me?.role === 'observer' ? 'Ви спостерігач: лише перегляд' : 'Вам не призначено цей файл для редагування' }, 'лише перегляд'),
           f.online.length > 0 && h('span', { class: 'avatars', title: `Зараз у файлі: ${f.online.map((o) => o.username).join(', ')}` },
             f.online.slice(0, 4).map((o) => avatar(o.username, { size: 22 })), f.online.length > 4 && h('span', { class: 'avatar more' }, `+${f.online.length - 4}`)),
           f.lastEdit && h('span', { class: 'dim' }, `остання правка: ${f.lastEdit.by ?? 'видалений акаунт'}, ${ago(f.lastEdit.at)}`),
-          admin && f.contributors?.length > 0 && h('span', { class: 'dim', title: f.contributors.map((c) => `${c.username}: ${c.edits}`).join('\n') },
+          f.contributors?.length > 0 && h('span', { class: 'dim', title: f.contributors.map((c) => `${c.username}: ${c.edits}`).join('\n') },
             `працювали: ${f.contributors.slice(0, 3).map((c) => c.username).join(', ')}${f.contributors.length > 3 ? '…' : ''}`))),
       h('div', { class: 'file-prog' }, strip.el,
         h('div', { class: 'fig-line num' },
@@ -125,7 +129,7 @@ export async function projectView(root, projectId) {
       h('div', { class: 'file-actions' }, open, more));
   }
 
-  // ── Оновлення оригіналу (адмін): звіт → підтвердження → застосування ──
+  // ── Оновлення оригіналу (менеджер і вище): звіт → підтвердження → застосування ──
   function updateOriginal(f) {
     const input = h('input', { type: 'file', accept: f.format === 'csv' ? '.csv,.tsv,.txt,text/csv' : '.locres', class: 'hidden' });
     input.addEventListener('change', async () => {
@@ -150,7 +154,7 @@ export async function projectView(root, projectId) {
     input.click();
   }
 
-  // ── Завантаження (адмін) ──
+  // ── Завантаження (власник, адмін, менеджер) ──
   function uploader() {
     const list = h('ul', { class: 'upload-list' });
     const fileInput = h('input', { type: 'file', multiple: true, accept: '.locres,.csv', class: 'hidden' });
@@ -210,32 +214,42 @@ export async function projectView(root, projectId) {
     return h('div', null, zone, list);
   }
 
-  // ── Учасники (адмін) ──
+  // ── Учасники (власник, адмін, менеджер) ──
+  /** Ролі, які поточний користувач може призначати: менеджерів призначають лише власник і адмін. */
+  const assignableRoles = () => PROJECT_ROLES.filter((r) => r !== 'manager' || caps().assignManager);
+  const roleSelect = (value, { disabled = false } = {}) => {
+    const roles = assignableRoles();
+    if (value && !roles.includes(value)) roles.push(value);
+    const sel = h('select', { disabled, 'aria-label': 'Роль у проєкті', title: ROLE_HINTS[value] ?? '' },
+      roles.map((r) => h('option', { value: r }, roleLabel(r))));
+    sel.value = value;
+    return sel;
+  };
+
   function membersTab() {
     const wrap = h('div');
     const addInput = h('input', { type: 'text', list: 'users-list', placeholder: 'Нік або емейл користувача', style: 'max-width:340px' });
     const dl = h('datalist', { id: 'users-list' });
-    get('/api/admin/users').then((r) => {
-      const inProject = new Set(data.members.map((m) => m.userId));
-      for (const u of r.users) if (!inProject.has(u.id) && !u.disabled) dl.append(h('option', { value: u.username }));
+    get(`/api/projects/${projectId}/candidates`).then((r) => {
+      for (const u of r.users) dl.append(h('option', { value: u.username }));
     }).catch(() => {});
-    const canApprove = h('input', { type: 'checkbox' });
+    const addRole = roleSelect('translator');
 
     const add = async () => {
       if (!addInput.value.trim()) return;
       try {
-        await post(`/api/projects/${projectId}/members`, { username: addInput.value, canApprove: canApprove.checked });
+        await post(`/api/projects/${projectId}/members`, { username: addInput.value, role: addRole.value });
         addInput.value = '';
         await reload();
-        toast('Учасника додано. Тепер позначте файли, які він може редагувати.');
+        toast(addRole.value === 'translator' ? 'Учасника додано. Тепер позначте файли, які він може перекладати.' : 'Учасника додано.');
       } catch (e) { toast(e.message, true); }
     };
 
     wrap.append(
-      h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px' },
-        addInput, dl,
-        h('label', { class: 'check' }, canApprove, 'Може затверджувати'),
+      h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px' },
+        addInput, dl, addRole,
         h('button', { class: 'btn primary', onclick: add }, 'Додати до проєкту')),
+      h('p', { class: 'dim', style: 'font-size:13px;margin-bottom:18px' }, 'Власник і адміни бачать усі проєкти без додавання. Файли для редагування призначаються лише перекладачам; решта ролей працюють з усіма файлами проєкту за своїми правами.'),
       data.members.length === 0
         ? h('div', { class: 'empty' }, h('strong', null, 'У проєкті ще нікого немає'),
           'Люди з’являються у списку після реєстрації на сервері. Додайте їх за ніком або емейлом.')
@@ -244,6 +258,7 @@ export async function projectView(root, projectId) {
   }
 
   function memberBlock(m) {
+    const locked = m.role === 'manager' && !caps().assignManager; // менеджера змінює лише власник/адмін
     const saved = h('span', { class: 'saved' });
     let ids = new Set(m.fileIds);
     const push = debounce(async () => {
@@ -256,21 +271,23 @@ export async function projectView(root, projectId) {
     }, 350);
 
     const checks = data.files.map((f) => {
-      const cb = h('input', { type: 'checkbox', checked: ids.has(f.id), dataset: { fid: f.id } });
+      const cb = h('input', { type: 'checkbox', checked: ids.has(f.id), disabled: locked, dataset: { fid: f.id } });
       cb.addEventListener('change', () => { if (cb.checked) ids.add(f.id); else ids.delete(f.id); count.textContent = label(); push(); });
       return h('label', { class: 'check', title: f.name }, cb, f.name);
     });
-    const label = () => `редагує файлів: ${ids.size} з ${data.files.length}`;
-    const count = h('span', { class: 'muted' }, label());
+    const isTranslator = () => sel.value === 'translator';
+    const label = () => (isTranslator() ? `призначено файлів: ${ids.size} з ${data.files.length}` : 'усі файли проєкту');
+    const count = h('span', { class: 'muted' });
     const setAll = (v) => {
       ids = new Set(v ? data.files.map((f) => f.id) : []);
       panel.querySelectorAll('input[data-fid]').forEach((cb) => { cb.checked = v; });
       count.textContent = label(); push();
     };
     const panel = h('div', { class: 'member-files' + (openMembers.has(m.userId) ? '' : ' hidden') },
+      h('p', { class: 'dim', style: 'font-size:13px;margin-bottom:8px' }, 'Призначені файли діють лише для ролі «Перекладач»; інші ролі працюють з усіма файлами проєкту.'),
       h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' },
-        h('button', { class: 'btn small', onclick: () => setAll(true) }, 'Позначити всі'),
-        h('button', { class: 'btn small', onclick: () => setAll(false) }, 'Зняти всі'), saved),
+        h('button', { class: 'btn small', disabled: locked, onclick: () => setAll(true) }, 'Позначити всі'),
+        h('button', { class: 'btn small', disabled: locked, onclick: () => setAll(false) }, 'Зняти всі'), saved),
       data.files.length === 0 ? h('p', { class: 'muted', style: 'margin-top:8px' }, 'У проєкті ще немає файлів.') : h('div', { class: 'file-checks' }, checks));
     const toggle = h('button', {
       class: 'btn small', onclick: () => {
@@ -278,21 +295,27 @@ export async function projectView(root, projectId) {
         if (panel.classList.contains('hidden')) openMembers.delete(m.userId); else openMembers.add(m.userId);
       },
     }, 'Файли');
-    const approve = h('input', { type: 'checkbox', checked: m.canApprove });
-    approve.addEventListener('change', async () => {
-      try { await patch(`/api/projects/${projectId}/members/${m.userId}`, { canApprove: approve.checked }); toast('Збережено'); } catch (e) { toast(e.message, true); approve.checked = !approve.checked; }
+    const sel = roleSelect(m.role, { disabled: locked });
+    count.textContent = label();
+    sel.addEventListener('change', async () => {
+      const prev = m.role;
+      try {
+        await patch(`/api/projects/${projectId}/members/${m.userId}`, { role: sel.value });
+        m.role = sel.value; count.textContent = label(); sel.title = ROLE_HINTS[sel.value] ?? '';
+        toast('Роль збережено');
+      } catch (e) { toast(e.message, true); sel.value = prev; count.textContent = label(); }
     });
 
     return h('div', { class: 'member' },
       h('div', { class: 'member-head' },
         h('span', { class: 'name' }, m.username, m.disabled && h('span', { class: 'pill off', style: 'margin-left:8px' }, 'вимкнено')),
+        sel,
         count,
-        h('label', { class: 'check' }, approve, 'Може затверджувати'),
         h('span', { class: 'dim', style: 'font-size:13px' }, `правок: ${fmt(m.edits)} · був: ${ago(m.lastSeenAt)}`),
         h('span', { class: 'spacer' }),
         toggle,
         h('button', {
-          class: 'btn small danger', onclick: async () => {
+          class: 'btn small danger', disabled: locked, onclick: async () => {
             if (!confirm(`Прибрати ${m.username} з проєкту? Його переклади залишаться.`)) return;
             try { await del(`/api/projects/${projectId}/members/${m.userId}`); await reload(); } catch (e) { toast(e.message, true); }
           },
@@ -300,18 +323,44 @@ export async function projectView(root, projectId) {
       panel);
   }
 
+  // ── Активність проєкту (власник, адмін, менеджер) ──
+  const STATUS_NAMES = ['без статусу', 'на вичитку', 'затверджено'];
+  function activityTab() {
+    const wrap = h('div', null, h('p', { class: 'dim' }, 'Завантаження…'));
+    get(`/api/projects/${projectId}/activity?limit=150`).then(({ activity }) => {
+      clear(wrap);
+      if (!activity.length) { wrap.append(h('div', { class: 'empty' }, h('strong', null, 'Правок ще не було'), 'Тут з’являтимуться зміни перекладів і статусів у цьому проєкті.')); return; }
+      wrap.append(...activity.map((a) => {
+        const changed = a.oldTranslation !== a.newTranslation;
+        return h('div', { class: 'log-line' },
+          h('span', { class: 'dim num' }, dateTime(a.at)),
+          h('strong', null, a.user ?? 'видалений акаунт'),
+          h('span', { class: 'txt', title: a.newTranslation },
+            h('a', { href: `#/f/${a.fileId}` }, a.file.split('/').pop()), ' · ', a.rowKey, ' · ',
+            changed ? `«${a.newTranslation || 'порожньо'}»` : '', changed && a.oldStatus !== a.newStatus ? ' · ' : '',
+            a.oldStatus !== a.newStatus ? `${STATUS_NAMES[a.oldStatus]} → ${STATUS_NAMES[a.newStatus]}` : ''));
+      }));
+    }).catch((e) => { clear(wrap).append(h('div', { class: 'notice error' }, e.message)); });
+    return wrap;
+  }
+
   function render() {
     renderHeader();
     renderFiles();
     clear(body);
-    if (admin) {
+    const c = caps();
+    if (tab === 'members' && !c.members) tab = 'files';
+    if (tab === 'activity' && !c.activity) tab = 'files';
+    if (c.members || c.activity) {
       body.append(h('div', { class: 'tabs', role: 'tablist' },
         h('button', { role: 'tab', 'aria-selected': tab === 'files', onclick: () => { tab = 'files'; render(); } }, `Файли (${data.files.length})`),
-        h('button', { role: 'tab', 'aria-selected': tab === 'members', onclick: () => { tab = 'members'; render(); } }, `Учасники (${data.members.length})`)));
+        c.members && h('button', { role: 'tab', 'aria-selected': tab === 'members', onclick: () => { tab = 'members'; render(); } }, `Учасники (${data.members?.length ?? 0})`),
+        c.activity && h('button', { role: 'tab', 'aria-selected': tab === 'activity', onclick: () => { tab = 'activity'; render(); } }, 'Активність')));
     }
-    if (tab === 'members' && admin) body.append(membersTab());
+    if (tab === 'members' && c.members) body.append(membersTab());
+    else if (tab === 'activity' && c.activity) body.append(activityTab());
     else {
-      if (admin && !data.project.archived) body.append((uploaderEl ??= uploader()));
+      if (c.upload && !data.project.archived) body.append((uploaderEl ??= uploader()));
       body.append(filesBox);
     }
   }
@@ -320,7 +369,7 @@ export async function projectView(root, projectId) {
     strips.splice(0).forEach((st) => st.destroy());
     clear(filesBox).append(data.files.length === 0
       ? h('div', { class: 'empty' }, h('strong', null, 'У проєкті ще немає файлів'),
-        admin ? 'Завантажте файли .locres або .csv вище — з них буде створено таблицю рядків для перекладу.' : 'Адміністратор ще не завантажив файлів.')
+        caps().upload ? 'Завантажте файли .locres або .csv вище — з них буде створено таблицю рядків для перекладу.' : 'Файлів ще не завантажено.')
       : h('div', { class: 'file-list' }, data.files.map(fileRow)));
   }
 
@@ -330,7 +379,7 @@ export async function projectView(root, projectId) {
 
   // Оновлюємо присутність і статистику, поки сторінка відкрита (не чіпаємо вкладку учасників, щоб не збивати галочки).
   timer = setInterval(async () => {
-    if (document.hidden || tab === 'members') return;
+    if (document.hidden || tab === 'members' || tab === 'activity') return;
     try { data = await get(`/api/projects/${projectId}`); if (!destroyed && tab === 'files') { renderHeader(); renderFiles(); } } catch { /* ignore */ }
   }, 8000);
 

@@ -1,6 +1,6 @@
 import { h, clear, fmt, pct, plural, toast, debounce, menu, avatar } from './util.js';
 import { get, post, patch, api, ApiError } from './api.js';
-import { topbar, session } from './app.js';
+import { topbar } from './app.js';
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
 import { openExportDialog } from './export_dialog.js';
 import { createStrip } from './strip.js';
@@ -95,14 +95,13 @@ export async function editorView(root, fileId) {
   const gotoInp = h('input', { type: 'number', class: 'goto', min: 1, placeholder: '№ рядка', 'aria-label': 'Перейти до рядка', inputMode: 'numeric' });
   const countLbl = h('span', { class: 'count num' });
   const selBox = h('div', { class: 'sel-actions hidden' });
-  const isAdmin = !!session.user?.isAdmin;
   const reloadAll = () => { st.cache.clear(); st.gen++; resetList(); };
   const moreMenu = menu([
     perms.canEdit && { label: 'Змінити статус для всіх за фільтром…', onclick: () => bulkAll() },
-    perms.canEdit && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
-    isAdmin && { label: 'Скачати…', onclick: () => openExportDialog({ fileId, fileName: base, sourceFormat: file.format }) },
-    isAdmin && !perms.archived && { sep: true },
-    isAdmin && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },
+    perms.canImport && !perms.archived && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
+    perms.canExport && { label: 'Скачати…', onclick: () => openExportDialog({ fileId, fileName: base, sourceFormat: file.format }) },
+    perms.canClear && !perms.archived && { sep: true },
+    perms.canClear && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },
   ], { label: 'Дії з файлом' });
 
   const spacer = h('div', { class: 'grid-spacer' });
@@ -132,7 +131,9 @@ export async function editorView(root, fileId) {
     perms.canEdit
       ? h('div', { class: 'dock-actions' }, btnNext, btnReview, perms.canApprove && btnApprove, btnReset, btnCopy, btnRevert,
         h('span', { class: 'hint' }, 'Ctrl+Enter — зберегти й далі' + (perms.canApprove ? ' · Ctrl+Shift+Enter — затвердити й далі' : '') + ' · Alt+↑/↓ — між рядками'))
-      : h('p', { class: 'ro-note' }, perms.archived ? 'Проєкт заархівовано — лише перегляд.' : 'Лише перегляд: адміністратор не надав вам доступ до редагування цього файлу.'));
+      : h('p', { class: 'ro-note' }, perms.archived ? 'Проєкт заархівовано — лише перегляд.'
+        : perms.role === 'observer' ? 'Ви спостерігач: лише перегляд.'
+        : 'Лише перегляд: вам не призначено цей файл для редагування.'));
 
   const editorEl = h('div', { class: 'editor' },
     topbar([{ label: 'Проєкти', href: '#/' }, { label: file.project, href: `#/p/${file.projectId}` }, { label: base }]),

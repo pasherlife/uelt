@@ -1,6 +1,7 @@
 import { h, clear, fmt, pct, plural, askDialog, toast } from './util.js';
 import { get, post } from './api.js';
 import { session, topbar, navigate } from './app.js';
+import { roleLabel } from './roles.js';
 
 export function progressBar(s, { tall = false } = {}) {
   const t = s.totalRows || 1;
@@ -32,7 +33,8 @@ export async function projectsView(root) {
   const cards = projects.map((p) => h('a', { class: 'card project-card', href: `#/p/${p.id}` },
     h('div', { class: 'card-head' },
       h('h2', { class: 'card-title' }, p.name),
-      p.archived && h('span', { class: 'pill' }, 'архів')),
+      p.archived && h('span', { class: 'pill' }, 'архів'),
+      !admin && p.myRole && h('span', { class: 'pill', title: 'Ваша роль у проєкті' }, roleLabel(p.myRole))),
     p.description && h('p', { class: 'card-desc' }, p.description),
     h('div', { class: 'card-progress' },
       h('div', { class: 'big-pct num' }, `${pct(p.stats.translatedRows, p.stats.totalRows)}`, h('small', null, '%')),
@@ -43,18 +45,18 @@ export async function projectsView(root) {
     h('div', { class: 'card-foot' },
       h('span', null, `${fmt(p.files)} ${plural(p.files, 'файл', 'файли', 'файлів')}`),
       p.online > 0 && h('span', { class: 'live' }, h('i'), `зараз працюють: ${p.online}`),
-      !admin && h('span', { class: 'dim' }, p.editableFiles ? `ваших файлів: ${p.editableFiles}` : 'лише перегляд'))));
+      !admin && h('span', { class: 'dim' }, p.myRole === 'translator' && p.editableFiles ? `ваших файлів: ${p.editableFiles}` : p.editableFiles ? 'можна редагувати' : 'лише перегляд'))));
 
   clear(root).append(topbar([{ label: 'Проєкти' }]),
     h('main', { class: 'page' },
       h('div', { class: 'page-head' },
         h('div', null, h('h1', null, 'Проєкти'),
-          h('p', { class: 'sub' }, admin ? 'Усі проєкти сервера.' : 'Проєкти, до яких вас додав адміністратор.')),
+          h('p', { class: 'sub' }, admin ? 'Усі проєкти сервера.' : 'Проєкти, до яких вас додали.')),
         admin && h('button', { class: 'btn primary', onclick: createProject }, '+ Новий проєкт')),
       projects.length === 0
         ? h('div', { class: 'empty' },
           h('strong', null, admin ? 'Проєктів ще немає' : 'Вам ще не призначили жодного проєкту'),
-          admin ? 'Створіть проєкт, завантажте в нього файли .locres і додайте перекладачів.' : 'Попросіть адміністратора додати вас до проєкту — він з’явиться тут.')
+          admin ? 'Створіть проєкт, завантажте в нього файли .locres і додайте перекладачів.' : 'Попросіть власника, адміна чи менеджера проєкту додати вас — він з’явиться тут.')
         : h('div', { class: 'card-grid' }, cards)));
   return {};
 }
