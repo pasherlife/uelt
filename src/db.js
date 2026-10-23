@@ -134,7 +134,7 @@ export function openDb(dbPath) {
   if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'struct_rev')) {
     db.exec('ALTER TABLE files ADD COLUMN struct_rev INTEGER NOT NULL DEFAULT 0');
   }
-  // формат джерела файлу: 'locres' | 'csv'
+  // формат джерела файлу: 'locres' | 'csv' | 'txt' | 'json'
   if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'format')) {
     db.exec("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT 'locres'");
   }

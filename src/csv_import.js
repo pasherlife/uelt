@@ -13,13 +13,14 @@ export const MAX_CSV_BYTES = 20 * 1024 * 1024;
 
 /** Кандидати в порядку пріоритету при нічиї: `;` типовий для Excel з українською локаллю. */
 const CANDIDATES = [';', ',', '\t', '|'];
-const DELIMITER_NAMES = { ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe' };
+const DELIMITER_NAMES = { ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe', '=': 'equals' };
 const SAMPLE_RECORDS = 20;
 
-const normalize = (s) => s.trim().toLowerCase().replace(/[ _-]+/g, '');
-const KEY_NAMES = ['key', 'rowkey', 'ключ', 'ключрядка', 'id'];
-const TRANSLATION_NAMES = ['translation', 'translated', 'переклад', 'перекладенийтекст'];
-const SOURCE_NAMES = ['source', 'original', 'text', 'оригінал', 'текст', 'джерело'];
+export const normalizeHeader = (s) => s.trim().toLowerCase().replace(/[ _-]+/g, '');
+const normalize = normalizeHeader;
+export const KEY_NAMES = ['key', 'rowkey', 'ключ', 'ключрядка', 'id'];
+export const TRANSLATION_NAMES = ['translation', 'translated', 'переклад', 'перекладенийтекст'];
+export const SOURCE_NAMES = ['source', 'original', 'text', 'оригінал', 'текст', 'джерело'];
 const KNOWN_HEADERS = new Set([...KEY_NAMES, ...TRANSLATION_NAMES, ...SOURCE_NAMES]);
 
 export const delimiterName = (d) => DELIMITER_NAMES[d] ?? 'comma';
@@ -150,7 +151,7 @@ export function parseCsvTranslations(input, options = {}) {
 const unguardCell = (s) => (/^'[=+\-@\t\r]/.test(s) ? s.slice(1) : s);
 const applyUnguard = (records, on) => (on ? records.map((r) => r.map(unguardCell)) : records);
 
-const STATUS_NAMES = ['status', 'статус'];
+export const STATUS_NAMES = ['status', 'статус'];
 const STATUS_VALUES = {
   '0': 0, none: 0, безстатусу: 0,
   '1': 1, review: 1, needsreview: 1, навичитку: 1,
@@ -158,7 +159,7 @@ const STATUS_VALUES = {
 };
 
 /** Статус із клітинки CSV: порожнє → null (визначиться автоматично), невідоме → помилка. */
-function parseStatusCell(raw, csvRow) {
+export function parseStatusCell(raw, csvRow) {
   const v = normalize(String(raw ?? ''));
   if (v === '') return null;
   if (!(v in STATUS_VALUES)) throw new HttpError(400, `Невідомий статус «${String(raw).trim()}» у рядку ${csvRow} (0/1/2, none/review/approved).`);

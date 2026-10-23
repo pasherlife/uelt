@@ -98,7 +98,7 @@ export async function editorView(root, fileId) {
   const reloadAll = () => { st.cache.clear(); st.gen++; resetList(); };
   const moreMenu = menu([
     perms.canEdit && { label: 'Змінити статус для всіх за фільтром…', onclick: () => bulkAll() },
-    perms.canImport && !perms.archived && { label: 'Імпортувати переклад (.locres / .csv)…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
+    perms.canImport && !perms.archived && { label: 'Імпортувати переклад (.locres / .csv / .txt / .json)…', onclick: () => pickAndImportTranslations({ fileId, fileName: base, canApprove: perms.canApprove, onDone: reloadAll }) },
     perms.canExport && { label: 'Скачати…', onclick: () => openExportDialog({ fileId, fileName: base, sourceFormat: file.format }) },
     perms.canClear && !perms.archived && { sep: true },
     perms.canClear && !perms.archived && { label: 'Очистити переклад…', danger: true, onclick: () => clearTranslations({ id: fileId, name: file.name }, reloadAll) },

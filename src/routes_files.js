@@ -4,7 +4,8 @@ import { updateLocres, importTranslations } from './importer.js';
 import { requireUser, fileAccess, requireFileCan } from './perm.js';
 import { tx } from './db.js';
 import { parseCsvTranslations, delimiterName, normalizeDelimiter, MAX_CSV_BYTES } from './csv_import.js';
-import { buildCsv, buildLocresExport, EXPORT_SCOPES } from './exporter.js';
+import { buildCsv, buildTxt, buildJson, buildLocresExport, EXPORT_SCOPES } from './exporter.js';
+import { parseTranslationsFile, normalizeTxtSeparator, txtSeparatorName } from './formats.js';
 
 const MAX_TRANSLATION = 50_000;
 const FILTERS = new Set(['all', 'untranslated', 'review', 'approved', 'notapproved', 'mine', 'changed']);
@@ -244,18 +245,29 @@ export function registerFileRoutes(router, app) {
     const user = requireUser(ctx);
     const a = requireFileCan(db, Number(ctx.params.id), user, 'file.export');
     const format = ctx.query.get('format') || a.file.format;
-    if (format !== 'locres' && format !== 'csv') throw new HttpError(400, 'Формат експорту: locres або csv.');
+    if (!['locres', 'csv', 'txt', 'json'].includes(format)) throw new HttpError(400, 'Формат експорту: locres, csv, txt або json.');
     const origName = path.posix.basename(a.file.name);
-    const base = origName.replace(/\.(locres|csv)$/i, '');
+    const base = origName.replace(/\.(locres|csv|txt|json)$/i, '');
 
-    if (format === 'csv') {
+    if (format !== 'locres') {
       const scope = ctx.query.get('scope') || 'all';
       if (!EXPORT_SCOPES.has(scope)) throw new HttpError(400, 'Невідомий набір рядків для експорту.');
-      const delimiter = normalizeDelimiter(ctx.query.get('delimiter') || 'semicolon') ?? ';';
       const { where, params } = filterClause(new URLSearchParams({ filter: scope }), user);
       const rows = db.prepare(`SELECT r.* FROM rows r WHERE r.file_id = ?${where} ORDER BY r.pos`).all(a.file.id, ...params);
-      const buf = buildCsv(rows, { delimiter, bom: ctx.query.get('bom') !== '0', safe: ctx.query.get('safe') === '1' });
-      return new RawResponse(200, buf, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': contentDisposition(`${base}.csv`) });
+      const bom = ctx.query.get('bom') !== '0';
+      if (format === 'csv') {
+        const delimiter = normalizeDelimiter(ctx.query.get('delimiter') || 'semicolon') ?? ';';
+        const buf = buildCsv(rows, { delimiter, bom, safe: ctx.query.get('safe') === '1' });
+        return new RawResponse(200, buf, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': contentDisposition(`${base}.csv`) });
+      }
+      if (format === 'txt') {
+        const separator = normalizeTxtSeparator(ctx.query.get('delimiter')) ?? '=';
+        const column = ctx.query.get('column') === 'source' ? 'source' : 'translation';
+        const buf = buildTxt(rows, { separator, column, bom: ctx.query.get('bom') === '1' });
+        return new RawResponse(200, buf, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': contentDisposition(`${base}.txt`) });
+      }
+      const shape = ctx.query.get('shape') === 'object' ? 'object' : 'records';
+      return new RawResponse(200, buildJson(rows, { shape }), { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': contentDisposition(`${base}.json`) });
     }
 
     const rows = db.prepare('SELECT * FROM rows WHERE file_id = ? ORDER BY pos').all(a.file.id);
@@ -276,7 +288,10 @@ export function registerFileRoutes(router, app) {
     else throw new HttpError(400, 'Передайте CSV як csvBase64 (байти) або csv (текст).');
     const delimiter = body.delimiter ?? ctx.query.get('delimiter') ?? 'auto';
     const unguard = body.safe === true || ctx.query.get('safe') === '1';
-    return { parsed: parseCsvTranslations(input, { delimiter, unguard }), actions: body.actions ?? {} };
+    const format = body.format ?? ctx.query.get('format') ?? 'csv';
+    if (!['csv', 'txt', 'json'].includes(format)) throw new HttpError(400, 'Формат імпорту: csv, txt або json.');
+    const parsed = format === 'csv' ? parseCsvTranslations(input, { delimiter, unguard }) : parseTranslationsFile(input, format, { delimiter });
+    return { parsed, actions: body.actions ?? {} };
   }
 
   function csvPreview(fileId, parsed, canApprove = false) {
@@ -294,7 +309,9 @@ export function registerFileRoutes(router, app) {
       };
     });
     return {
-      delimiter: delimiterName(parsed.delimiter),
+      format: parsed.format ?? 'csv',
+      shape: parsed.shape ?? null,
+      delimiter: parsed.delimiter == null ? null : (parsed.format === 'txt' ? txtSeparatorName(parsed.delimiter) : delimiterName(parsed.delimiter)),
       encoding: parsed.encoding,
       hasStatus: !!parsed.hasStatus,
       statusApplies: !!parsed.hasStatus && canApprove,
@@ -383,7 +400,7 @@ export function registerFileRoutes(router, app) {
   router.post('/api/files/:id/update', async (ctx) => {
     const user = requireUser(ctx);
     const a = requireFileCan(db, Number(ctx.params.id), user, 'file.update');
-    const buffer = await readBody(ctx.req, a.file.format === 'csv' ? MAX_CSV_BYTES : 256 * 1024 * 1024);
+    const buffer = await readBody(ctx.req, a.file.format !== 'locres' ? MAX_CSV_BYTES : 256 * 1024 * 1024);
     const report = updateLocres(db, { file: a.file, buffer, userId: user.id, apply: ctx.query.get('apply') === '1', delimiter: ctx.query.get('delimiter') ?? 'auto', unguard: ctx.query.get('safe') === '1' });
     if (ctx.query.get('apply') === '1') { stats.drop(a.file.id); strips.drop(a.file.id); }
     return { ...report, applied: ctx.query.get('apply') === '1' };

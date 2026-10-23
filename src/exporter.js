@@ -4,6 +4,7 @@
 import { buildLocres, strCrc32, markersToBreaks } from './locres.js';
 import { cv2Process } from './cv2.js';
 import { HttpError } from './http.js';
+import { escapeText } from './formats.js';
 
 export const EXPORT_SCOPES = new Set(['all', 'untranslated', 'review', 'approved', 'notapproved', 'changed']);
 export const CSV_HEADER = ['key', 'source', 'translation', 'status'];
@@ -31,23 +32,45 @@ export function buildCsv(rows, { delimiter = ';', bom = true, safe = false } = {
   return bom ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), body]) : body;
 }
 
+/** TXT: «ключ<роздільник>текст», по рядку на запис. column: translation (з підстановкою оригіналу, якщо порожньо) | source. */
+export function buildTxt(rows, { separator = '=', column = 'translation', bom = false } = {}) {
+  const lines = rows.map((r) => {
+    const v = column === 'source' ? r.source : (r.translation !== '' ? r.translation : r.source);
+    return `${r.row_key}${separator}${escapeText(v)}`;
+  });
+  const body = Buffer.from(lines.join('\r\n') + (lines.length ? '\r\n' : ''), 'utf8');
+  return bom ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), body]) : body;
+}
+
+/** JSON: records — масив {key, source, translation, status}; object — плоский {key: переклад або оригінал}. */
+export function buildJson(rows, { shape = 'records' } = {}) {
+  let data;
+  if (shape === 'object') {
+    data = {};
+    for (const r of rows) data[r.row_key] = r.translation !== '' ? r.translation : r.source;
+  } else {
+    data = rows.map((r) => ({ key: r.row_key, source: r.source, translation: r.translation, status: r.status }));
+  }
+  return Buffer.from(JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
 /**
  * Збирає .locres. Для файлу з .locres-джерела зберігаються оригінальні хеші, версія й (за потреби) шифрування CV2.
  * Для CSV-джерела хеші обчислюються (CRC32 від простору імен, ключа й оригінального тексту), версія — 0, 1 або 2.
  */
 export function buildLocresExport(file, rows, versionParam) {
   const meta = JSON.parse(file.meta);
-  const fromCsv = file.format === 'csv';
+  const fromCsv = file.format !== 'locres';
   let version = file.version;
   let namespaces = meta.namespaces;
   if (fromCsv) {
     version = versionParam == null || versionParam === '' ? 2 : Number(versionParam);
     if (!BUILDABLE_VERSIONS.includes(version)) {
-      throw new HttpError(400, 'Для файлів із CSV доступні версії .locres 0 (Legacy), 1 (Compact) і 2 (Optimized); версії з CityHash64 не підтримуються.');
+      throw new HttpError(400, 'Для файлів із csv/txt/json доступні версії .locres 0 (Legacy), 1 (Compact) і 2 (Optimized); версії з CityHash64 не підтримуються.');
     }
     namespaces = meta.namespaces.map((ns) => ({ ...ns, hash: strCrc32(markersToBreaks(ns.name)) }));
   } else if (versionParam != null && versionParam !== '') {
-    throw new HttpError(400, 'Версію .locres можна вибрати лише для файлів, створених із CSV.');
+    throw new HttpError(400, 'Версію .locres можна вибрати лише для файлів, створених із csv, txt або json.');
   }
   const entries = rows.map((r) => ({
     ns: r.ns, key: r.key,

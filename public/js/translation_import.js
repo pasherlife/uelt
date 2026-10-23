@@ -3,17 +3,21 @@ import { api, post } from './api.js';
 import { importCsvFile } from './csv_import.js';
 
 /**
- * Єдиний імпорт перекладу: .locres або .csv (обробник за розширенням).
+ * Єдиний імпорт перекладу: .locres, .csv, .txt або .json (обробник за розширенням).
  * .locres → звіт → підтвердження з параметрами → застосування; .csv → попередній перегляд із діями для кожного рядка.
  */
 export function pickAndImportTranslations({ fileId, fileName, canApprove, onDone }) {
-  const input = h('input', { type: 'file', accept: '.locres,.csv,.tsv,.txt,text/csv', class: 'hidden' });
+  const input = h('input', { type: 'file', accept: '.locres,.csv,.tsv,.txt,.json,text/csv,application/json', class: 'hidden' });
   input.addEventListener('change', async () => {
     const f = input.files[0];
     if (!f) return;
     try {
-      if (/\.(csv|tsv|txt)$/i.test(f.name)) { await importCsvFile(f, { fileId, fileName, canApprove, onDone }); return; }
-      if (!/\.locres$/i.test(f.name)) { toast('Підтримуються файли .locres і .csv.', true); return; }
+      if (/\.(csv|tsv|txt|json)$/i.test(f.name)) {
+        const format = /\.txt$/i.test(f.name) ? 'txt' : /\.json$/i.test(f.name) ? 'json' : 'csv';
+        await importCsvFile(f, { fileId, fileName, canApprove, onDone, format });
+        return;
+      }
+      if (!/\.locres$/i.test(f.name)) { toast('Підтримуються файли .locres, .csv, .txt і .json.', true); return; }
       const buf = await f.arrayBuffer();
       const base = `/api/files/${fileId}/translations`;
       const rep = await api('POST', base, buf);

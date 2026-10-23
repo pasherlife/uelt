@@ -1,6 +1,6 @@
 # UELT Web — проєктний документ
 
-> Спільний переклад ігрових локалізацій (`.locres` Unreal Engine та `.csv`) з акаунтами, ролями, статусами рядків і прогресом у реальному часі.
+> Спільний переклад ігрових локалізацій (`.locres` Unreal Engine, `.csv`, `.txt` і `.json`) з акаунтами, ролями, статусами рядків і прогресом у реальному часі.
 >
 > Документ описує **фактичний стан** репозиторію `pasherlife/uelt` (гілка `main`, коміт `e9a8f06` і новіші). Усі етапи початкового плану виконано; відхилення від плану та те, що лишилося, — у §9 і §10.
 
@@ -22,8 +22,8 @@
 **Що вміє система**
 
 - Сім ролей: власник, адмін, менеджер, перекладач, редактор, рецензент, спостерігач (§3).
-- Файли проєкту завантажуються як `.locres` і як `.csv` (CSV: автовизначення роздільника й кодування).
-- Файл проєкту скачується як `.locres` і як `.csv`; переклад імпортується з `.locres` і з `.csv` (§4).
+- Файли проєкту завантажуються як `.locres`, `.csv`, `.txt` (`ключ=текст`) і `.json` (CSV/TXT: автовизначення роздільника й кодування).
+- Файл проєкту скачується як `.locres`, `.csv`, `.txt`, `.json`; переклад імпортується з `.locres`, `.csv`, `.txt`, `.json` (§4).
 - Статуси рядків («Без статусу» → «На вичитку» → «Затверджено»), статистика слів і рядків, смуга прогресу, присутність, журнал правок.
 - Шифрований LUT Code Vein 2, оновлення оригіналу зі звітом, сповіщення на пошту.
 
@@ -47,9 +47,10 @@ src/
   routes_projects.js           проєкти, учасники й ролі, кандидати, активність проєкту, завантаження файлів
   routes_files.js              рядки, статуси, поллінг, експорт, CSV/locres-імпорт, оновлення оригіналу, очищення, видалення
   locres.js                    parse/build .locres (Legacy…CityHash64ExternID), CRC32, ID рядків, маркери переносів
-  importer.js                  importLocres / importCsvSource / csvToLoc / updateLocres / importTranslations
+  importer.js                  importLocres / importSourceFile / sourceToLoc (csvToLoc)  / updateLocres / importTranslations
   csv_import.js                парсер CSV: detectDelimiter, decodeCsv, parseCsvTranslations, parseCsvSource
-  exporter.js                  buildCsv (BOM, лапки, захист формул) і buildLocresExport (хеші, версії)
+  formats.js                   TXT і JSON: parseTxtSource, parseJsonSource, parseSourceFile, parseTranslationsFile, escapeText
+  exporter.js                  buildCsv (BOM, лапки, захист формул), buildTxt, buildJson і buildLocresExport (хеші, версії)
   cv2.js                       шифрування/розшифрування LUT Code Vein 2
   stats.js, words.js           статистика, смуга прогресу, підрахунок слів
   presence.js                  хто зараз у якому файлі
@@ -76,7 +77,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 | `settings` | `registration` (вільна реєстрація) |
 | `projects` | `archived`, `description` |
 | `project_members` | `role` (`manager`\|`translator`\|`editor`\|`reviewer`\|`observer`), `can_approve` (синхронізується з роллю) |
-| `files` | `format` (`locres`\|`csv`), `meta` (JSON: простори імен, `cv2`, для CSV — `csv: {delimiter, encoding, columns}`), `version`, `rev`, `struct_rev` |
+| `files` | `format` (`locres`\|`csv`\|`txt`\|`json`), `meta` (JSON: простори імен, `cv2`, `csv: {delimiter, encoding, columns}` / `txt: {separator, encoding, header}` / `json: {shape, encoding, columns}`), `version`, `rev`, `struct_rev` |
 | `file_access` | призначення файлів (діє лише для ролі «перекладач») |
 | `rows` | `row_key` (`Namespace::Key`), `source`, `translation`, `status`, `ver`, `rev`, пошукові `*_lc` |
 | `edits` | журнал правок (стара/нова версія тексту й статусу, автор, час) |
@@ -124,8 +125,8 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 | Додавати учасників, змінювати ролі й доступ до файлів | ✔ | ✔ | ✔² | — | — | — | — |
 | Завантажити файл у проєкт (`.locres`/`.csv`) | ✔ | ✔ | ✔ | — | — | — | — |
 | Оновити оригінал / очистити переклад / видалити файл | ✔ | ✔ | ✔ | — | — | — | — |
-| **Скачати** файл (`.locres` / `.csv`) | ✔ | ✔ | ✔ | — | — | — | — |
-| **Імпортувати** переклад (`.locres` / `.csv`) | ✔ | ✔ | ✔ | П | ✔ | ✔ | — |
+| **Скачати** файл (`.locres` / `.csv` / `.txt` / `.json`) | ✔ | ✔ | ✔ | — | — | — | — |
+| **Імпортувати** переклад (`.locres` / `.csv` / `.txt` / `.json`) | ✔ | ✔ | ✔ | П | ✔ | ✔ | — |
 | Редагувати переклад, ставити «На вичитку»/«Без статусу» | ✔ | ✔ | ✔ | П | ✔ | ✔ | — |
 | **Затверджувати** рядки, знімати затвердження | ✔ | ✔ | ✔ | — | — | ✔ | — |
 | Переглядати файли, рядки, статистику, присутність | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
@@ -157,13 +158,13 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ## 4. Файли проєкту: формати
 
-Файл проєкту — набір **рядків** (`rows`) з оригіналом і перекладом. Джерелом може бути `.locres` або `.csv` (`files.format`).
+Файл проєкту — набір **рядків** (`rows`) з оригіналом і перекладом. Джерелом може бути `.locres`, `.csv`, `.txt` або `.json` (`files.format`).
 
 ### 4.1. Завантаження в проєкт
 
 Хто: власник, адмін, менеджер. Формат — за розширенням (регістр не важливий).
 
-`POST /api/projects/:id/files?name=<шлях>.locres|.csv[&cv2=release|demo][&delimiter=…][&safe=1]` — тіло: **сирі байти** файлу. Ліміти: `.locres` 256 МБ, `.csv` 20 МБ. `cv2` — лише для `.locres`.
+`POST /api/projects/:id/files?name=<шлях>.locres|.csv|.txt|.json[&cv2=release|demo][&delimiter=…][&safe=1]` — тіло: **сирі байти** файлу. Ліміти: `.locres` 256 МБ, `.csv`/`.txt`/`.json` 20 МБ. `cv2` — лише для `.locres`.
 
 **CSV-джерело** (key + source, за бажанням translation і status):
 
@@ -185,6 +186,11 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 **ID → простір імен і ключ** (`csvToLoc`): розбиття за **першим** `::`; без `::` — порожній простір імен. Суфікс `[n]` вважається маркером дубліката лише тоді, коли `n` дорівнює кількості попередніх рядків із тим самим простором імен і ключем (так само нумерує `assignRowIds`); інакше це частина ключа. Після розбору ID перераховуються через `assignRowIds` і мають збігатися з вхідними, інакше — помилка «некоректний формат» (так перевіряється коректність кругового проходу).
 
+### 4.1a. TXT- і JSON-джерела
+- **TXT:** `ключ<роздільник>текст` у рядку; роздільник авто (`=`, табуляція, `|`, `;`) або вручну; коментарі `#`/`//` і порожні рядки пропускаються; необов'язковий заголовок `key=source`; escape `\n \r \t \\`. Для `=` пробіли навколо обрізаються. Кодування як у CSV.
+- **JSON:** об'єкт (плоский → `object`, вкладений → `nested`, ID = шлях через `::`) або масив записів (`records`: `key`, `source`, необов'язково `translation`, `status`). Нерядкові значення, масиви всередині об'єкта, дублікати ключів — 400 із указанням шляху.
+- Усе зводиться до тієї ж моделі (`sourceToLoc`), тож редактор, статуси, оновлення оригіналу й експорт у `.locres` (хеші CRC32, версії 0–2) працюють однаково для csv/txt/json. Експорт у власний формат не зберігає форму вкладеності JSON: `nested` експортується як плоскі ID (`menu::play`); при імпорті назад ID збігаються.
+
 ### 4.2. Автовизначення роздільника й кодування CSV
 
 - **Роздільник** (`detectDelimiter`): кандидати `;` `,` табуляція `|` (порядок = пріоритет при нічиї). Для кожного розбираються перші 20 записів з урахуванням лапок; оцінка = (кількість розпізнаних назв стовпців у заголовку) × 1000 + (стабільна кількість стовпців) × 100 + кількість стовпців. Кандидат з одним стовпцем не підходить; якщо жоден не підійшов — помилка з підказкою вказати роздільник вручну. Параметр `delimiter` (`auto`, `comma`, `semicolon`, `tab`, `pipe`) перевизначає автовиявлення; помилковий ручний вибір дає помилку, а не псує дані.
@@ -192,12 +198,15 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ### 4.3. Скачування файлу проєкту
 
-Хто: власник, адмін, менеджер. `GET /api/files/:id/export?format=locres|csv…` (за замовчуванням — формат джерела).
+Хто: власник, адмін, менеджер. `GET /api/files/:id/export?format=locres|csv|txt|json…` (за замовчуванням — формат джерела).
 
 | Параметр | Значення | За замовчуванням |
 |---|---|---|
-| `format` | `locres` \| `csv` | формат джерела |
-| `scope` (csv) | `all` \| `untranslated` \| `review` \| `approved` \| `notapproved` \| `changed` | `all` |
+| `format` | `locres` \| `csv` \| `txt` \| `json` | формат джерела |
+| `delimiter` (txt) | `equals` \| `tab` \| `pipe` \| `semicolon` | `equals` |
+| `column` (txt) | `translation` \| `source` | `translation` |
+| `shape` (json) | `records` \| `object` | `records` |
+| `scope` (csv, txt, json) | `all` \| `untranslated` \| `review` \| `approved` \| `notapproved` \| `changed` | `all` |
 | `delimiter` (csv) | `semicolon` \| `comma` \| `tab` | `semicolon` |
 | `bom` (csv) | `1` \| `0` | `1` (Excel коректно відкриває UTF-8) |
 | `safe` (csv) | `1` | вимкнено |
@@ -218,7 +227,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 | Перегляд | `POST /api/files/:id/translations` (без `apply`) — звіт | `POST /api/files/:id/csv-preview` — таблиця з діями для кожного рядка |
 | Застосування | `…/translations?apply=1&overwrite=0\|1&approve=0\|1` | `POST /api/files/:id/csv-import` з `actions` |
 
-Тіло CSV-запитів: JSON `{ csvBase64, delimiter, safe, actions }` (сирі байти в base64; старе поле `csv` — готовий текст — підтримується для сумісності).
+Тіло запитів: JSON `{ csvBase64, format (csv|txt|json), delimiter, safe, actions }` (сирі байти в base64; старе поле `csv` — готовий текст — підтримується для сумісності).
 
 Спільні правила:
 - Збіг за ключем `Namespace::Key`; невідомі ключі пропускаються й рахуються.
@@ -230,7 +239,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ### 4.5. Оновлення оригіналу
 
-Хто: власник, адмін, менеджер. `POST /api/files/:id/update[?apply=1][&delimiter=…][&safe=1]`. Для `.locres`-файлу приймає `.locres`, для CSV-файлу — `.csv` (стовпці `key,source`; `translation`/`status` ігноруються). Рядки зіставляються за `Namespace::Key`: переклади зберігаються; у рядків зі зміненим оригіналом статус стає «На вичитку»; нові додаються; зниклі видаляються разом з перекладом. Спершу звіт, потім застосування.
+Хто: власник, адмін, менеджер. `POST /api/files/:id/update[?apply=1][&delimiter=…][&safe=1]`. Для `.locres`-файлу приймає `.locres`, для csv/txt/json-файлу — файл того ж формату (`key`+`source`; `translation`/`status` ігноруються). Рядки зіставляються за `Namespace::Key`: переклади зберігаються; у рядків зі зміненим оригіналом статус стає «На вичитку»; нові додаються; зниклі видаляються разом з перекладом. Спершу звіт, потім застосування.
 
 ---
 
@@ -289,7 +298,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ## 7. Тестування
 
-- **84 автоматичні тести** (`npm test`): API й права (`api`, `roles_api`), матриця прав і міграція (`roles`), парсер CSV і кодування (`csv_parse`), імпорт перекладів (`csv`), CSV-джерело (`csv_source`), експорт і круговий прохід (`export`), формат locres, CV2, пошта (`locres`, `mailer`).
+- **91 автоматичний тест** (`npm test`): API й права (`api`, `roles_api`), матриця прав і міграція (`roles`), парсер CSV і кодування (`csv_parse`), імпорт перекладів (`csv`), CSV-джерело (`csv_source`), експорт і круговий прохід (`export`), TXT/JSON (`formats`), формат locres, CV2, пошта (`locres`, `mailer`).
 - **Браузерна перевірка** (Chromium): користувачі всіх семи ролей на сторінках проєкту, редактора й адмінки — вкладки, кнопки, меню файлу, нотатки «лише перегляд» відповідають правам; діалог передачі власності; помилок JavaScript у консолі немає. Автоматичного набору браузерних тестів у репозиторії **немає** (перевірку виконано окремим скриптом).
 
 ---

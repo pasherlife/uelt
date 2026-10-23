@@ -1,6 +1,6 @@
 import { HttpError } from './http.js';
 import { parseLocres, assignRowIds, breaksToMarkers } from './locres.js';
-import { parseCsvSource } from './csv_import.js';
+import { parseSourceFile, TEXT_SOURCE_FORMATS } from './formats.js';
 import { countWords } from './words.js';
 import { tx } from './db.js';
 import { cv2Process, CV2_SETS } from './cv2.js';
@@ -21,23 +21,27 @@ export function sanitizeFileName(raw) {
   name = name.split('/').filter((s) => s && s !== '.').join('/');
   if (!name || name.length > 240) throw new HttpError(400, 'Некоректна назва файлу.');
   if (name.split('/').some((s) => s === '..')) throw new HttpError(400, 'Некоректний шлях до файлу.');
-  if (!/\.(locres|csv)$/i.test(name)) throw new HttpError(400, 'Підтримуються лише файли .locres і .csv.');
+  if (!/\.(locres|csv|txt|json)$/i.test(name)) throw new HttpError(400, 'Підтримуються файли .locres, .csv, .txt і .json.');
   return name;
 }
 
 /** Формат джерела за розширенням імені файлу. */
-export const fileFormat = (name) => (/\.csv$/i.test(name) ? 'csv' : 'locres');
+export const fileFormat = (name) => {
+  const m = /\.(csv|txt|json)$/i.exec(name);
+  return m ? m[1].toLowerCase() : 'locres';
+};
 
 const nonAscii = (s) => /[^\x00-\x7f]/.test(s);
 
 /**
- * CSV-джерело → структура locres. ID рядка розбивається на простір імен і ключ за ПЕРШИМ «::».
+ * Текстове джерело (csv, txt, json) → структура locres. ID рядка розбивається на простір імен і ключ за ПЕРШИМ «::».
  * Суфікс «[n]» (n ≥ 1) вважається маркером дубліката, лише якщо n дорівнює кількості попередніх
  * рядків із тим самим простором імен і ключем (так само нумерує assignRowIds); інакше це частина ключа.
  * Наприкінці ID перераховуються через assignRowIds і мають збігатися з вхідними, інакше — помилка.
  */
-export function csvToLoc(buffer, { delimiter = 'auto', unguard = false } = {}) {
-  const parsed = parseCsvSource(buffer, { delimiter, unguard });
+export function sourceToLoc(buffer, { format = 'csv', delimiter = 'auto', unguard = false } = {}) {
+  if (!TEXT_SOURCE_FORMATS.includes(format)) throw new HttpError(400, 'Непідтримуваний формат файлу.');
+  const parsed = parseSourceFile(buffer, format, { delimiter, unguard });
   const namespaces = [];
   const nsIndex = new Map();
   const counts = new Map();
@@ -56,24 +60,30 @@ export function csvToLoc(buffer, { delimiter = 'auto', unguard = false } = {}) {
   const ids = assignRowIds(loc);
   ids.forEach((id, i) => {
     if (id !== parsed.entries[i].id) {
-      throw new HttpError(400, `Ключ «${parsed.entries[i].id}» у рядку ${parsed.entries[i].csvRow} має некоректний формат (очікувалось «${id}»).`);
+      throw new HttpError(400, `Ключ «${parsed.entries[i].id}» (запис ${parsed.entries[i].csvRow}) має некоректний формат (очікувалось «${id}»).`);
     }
   });
   return { loc, ids, parsed };
 }
 
-/** Створює файл проєкту з CSV (key, source, необов'язково translation і status). Статус із CSV враховується лише з правом затверджувати. */
-export function importCsvSource(db, { projectId, name, buffer, userId, canApprove = false, delimiter = 'auto', unguard = false }) {
-  const { loc, ids, parsed } = csvToLoc(buffer, { delimiter, unguard });
+/** Сумісність: CSV-джерело. */
+export const csvToLoc = (buffer, opts = {}) => sourceToLoc(buffer, { ...opts, format: 'csv' });
+
+/**
+ * Створює файл проєкту з текстового джерела (csv | txt | json): ключ, оригінал і необов'язково переклад та статус.
+ * Статус із файлу враховується лише з правом затверджувати.
+ */
+export function importSourceFile(db, { projectId, name, buffer, userId, format = 'csv', canApprove = false, delimiter = 'auto', unguard = false }) {
+  const { loc, ids, parsed } = sourceToLoc(buffer, { format, delimiter, unguard });
   if (loc.entries.length === 0) throw new HttpError(400, 'У файлі немає жодного рядка.');
-  const meta = JSON.stringify({ namespaces: loc.namespaces, cv2: null, csv: { delimiter: parsed.delimiter, encoding: parsed.encoding, columns: parsed.columns } });
+  const meta = JSON.stringify({ namespaces: loc.namespaces, cv2: null, ...parsed.info });
 
   return tx(db, () => {
     if (db.prepare('SELECT 1 FROM files WHERE project_id = ? AND name = ?').get(projectId, name)) {
       throw new HttpError(409, `Файл «${name}» уже є у проєкті.`);
     }
     const f = db.prepare('INSERT INTO files(project_id, name, version, meta, row_count, uploaded_by, created_at, format) VALUES(?,?,?,?,?,?,?,?)')
-      .run(projectId, name, loc.version, meta, loc.entries.length, userId, Date.now(), 'csv');
+      .run(projectId, name, loc.version, meta, loc.entries.length, userId, Date.now(), format);
     const fileId = Number(f.lastInsertRowid);
     const ins = db.prepare(`INSERT INTO rows(file_id, pos, ns, row_key, key, key_hash, value_hash, extern_id, key_unicode, value_unicode,
         source, translation, status, src_words, src_lc, tr_lc, key_lc, updated_by, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
@@ -90,7 +100,10 @@ export function importCsvSource(db, { projectId, name, buffer, userId, canApprov
         e.value, hasTr ? tr : '', status, countWords(e.value), e.value.toLowerCase(), hasTr ? tr.toLowerCase() : '', ids[i].toLowerCase(),
         hasTr ? userId : null, hasTr ? now : null);
     });
-    return { id: fileId, name, rowCount: loc.entries.length, version: loc.version, format: 'csv', translated, delimiter: parsed.delimiter, encoding: parsed.encoding };
+    return {
+      id: fileId, name, rowCount: loc.entries.length, version: loc.version, format, translated,
+      delimiter: parsed.delimiter, encoding: parsed.encoding, ...(parsed.shape ? { shape: parsed.shape } : {}),
+    };
   });
 }
 
@@ -130,14 +143,14 @@ export function importLocres(db, { projectId, name, buffer, userId, cv2 = null }
  * apply=false — лише звіт.
  */
 export function updateLocres(db, { file, buffer, userId, apply, delimiter = 'auto', unguard = false }) {
-  let loc, ids, csvInfo = null;
+  let loc, ids, srcInfo = null;
   const oldMeta = JSON.parse(file.meta);
   const cv2 = oldMeta.cv2 ?? null;
-  if (file.format === 'csv') {
-    // CSV-джерело: оновлюється лише оригінал (стовпець source); стовпці translation і status ігноруються
-    const c = csvToLoc(buffer, { delimiter, unguard });
+  if (file.format !== 'locres') {
+    // текстове джерело (csv/txt/json): оновлюється лише оригінал; переклад і статус із файлу ігноруються
+    const c = sourceToLoc(buffer, { format: file.format, delimiter, unguard });
     loc = c.loc; ids = c.ids;
-    csvInfo = { delimiter: c.parsed.delimiter, encoding: c.parsed.encoding, columns: c.parsed.columns };
+    srcInfo = c.parsed.info;
   } else {
     try { loc = parseLocres(decryptIfNeeded(buffer, cv2)); } catch (e) { throw new HttpError(400, `Не вдалося прочитати locres: ${e.message}`); }
     ids = assignRowIds(loc);
@@ -188,7 +201,7 @@ export function updateLocres(db, { file, buffer, userId, apply, delimiter = 'aut
       }
     }
     db.prepare('UPDATE files SET version = ?, meta = ?, row_count = ? WHERE id = ?')
-      .run(loc.version, JSON.stringify({ ...oldMeta, namespaces: loc.namespaces, cv2, ...(csvInfo ? { csv: csvInfo } : {}) }), loc.entries.length, file.id);
+      .run(loc.version, JSON.stringify({ ...oldMeta, namespaces: loc.namespaces, cv2, ...(srcInfo ?? {}) }), loc.entries.length, file.id);
     return report;
   };
   return apply ? tx(db, run) : run();

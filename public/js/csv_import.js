@@ -4,7 +4,9 @@ import { api } from './api.js';
 const DELIMITERS = [
   ['auto', 'Авто'], ['comma', 'Кома (,)'], ['semicolon', 'Крапка з комою (;)'], ['tab', 'Табуляція'], ['pipe', 'Вертикальна риска (|)'],
 ];
-const DELIMITER_LABEL = { comma: 'кома', semicolon: 'крапка з комою', tab: 'табуляція', pipe: 'вертикальна риска' };
+const TXT_DELIMITERS = [['auto', 'Авто'], ['equals', 'Дорівнює (=)'], ['tab', 'Табуляція'], ['pipe', 'Вертикальна риска (|)'], ['semicolon', 'Крапка з комою (;)']];
+const DELIMITER_LABEL = { comma: 'кома', semicolon: 'крапка з комою', tab: 'табуляція', pipe: 'вертикальна риска', equals: 'дорівнює (=)' };
+const FORMAT_LABEL = { csv: 'CSV', txt: 'TXT', json: 'JSON' };
 
 function toBase64(bytes) {
   let bin = '';
@@ -13,9 +15,9 @@ function toBase64(bytes) {
 }
 
 /** CSV-імпорт з уже вибраного файлу: байти йдуть на сервер, кодування й роздільник визначає сервер (роздільник можна змінити вручну). */
-export async function importCsvFile(file, { fileId, fileName, canApprove, onDone }) {
+export async function importCsvFile(file, { fileId, fileName, canApprove, onDone, format = 'csv' }) {
   const csvBase64 = toBase64(new Uint8Array(await file.arrayBuffer()));
-  await openPreview({ fileId, fileName, csvBase64, delimiter: 'auto', safe: false, canApprove, onDone });
+  await openPreview({ fileId, fileName, csvBase64, delimiter: 'auto', safe: false, canApprove, onDone, format });
 }
 
 /** Окремий вибір CSV (лишається для сумісності; основний вхід — pickAndImportTranslations). */
@@ -30,11 +32,11 @@ export function pickAndImportCsv(opts) {
 }
 
 async function openPreview(ctx) {
-  const preview = await api('POST', `/api/files/${ctx.fileId}/csv-preview`, { csvBase64: ctx.csvBase64, delimiter: ctx.delimiter, safe: ctx.safe });
+  const preview = await api('POST', `/api/files/${ctx.fileId}/csv-preview`, { csvBase64: ctx.csvBase64, delimiter: ctx.delimiter, safe: ctx.safe, format: ctx.format ?? 'csv' });
   showPreview({ ...ctx, preview });
 }
 
-function showPreview({ fileId, fileName, csvBase64, delimiter, safe, preview, canApprove, onDone }) {
+function showPreview({ fileId, fileName, csvBase64, delimiter, safe, preview, canApprove, onDone, format = 'csv' }) {
   const dlg = h('dialog', { style: 'width:min(980px,96vw);max-height:90vh;overflow:auto' });
   const actions = new Map();
   const tableRows = preview.items.map((item) => {
@@ -47,23 +49,23 @@ function showPreview({ fileId, fileName, csvBase64, delimiter, safe, preview, ca
     select.value = item.defaultAction;
     actions.set(item.key, select);
     return h('tr', null,
-      h('td', null, h('code', null, item.key), h('div', { class: 'dim', style: 'font-size:12px' }, `CSV: ${item.csvRow}`)),
+      h('td', null, h('code', null, item.key), h('div', { class: 'dim', style: 'font-size:12px' }, `${FORMAT_LABEL[format]}: ${item.csvRow}`)),
       h('td', null, h('div', { style: 'max-height:72px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere' }, item.translation || h('span', { class: 'dim' }, '—'))),
       h('td', null, h('div', { style: 'max-height:72px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere' }, item.currentTranslation || h('span', { class: 'dim' }, '—'))),
       h('td', null, item.state === 'unknown' ? 'Ключ не знайдено' : item.state === 'same' ? 'Без змін' : item.state === 'approved' ? 'Затверджено' : item.state === 'existing' ? 'Є переклад' : 'Порожній'),
       h('td', null, select));
   });
   const summary = h('p', { class: 'muted', style: 'margin:8px 0 16px' },
-    `Файл «${fileName}». Роздільник: ${DELIMITER_LABEL[preview.delimiter] ?? preview.delimiter}; кодування: ${preview.encoding ?? 'utf-8'}. Рядків: ${fmt(preview.total)}; збігів за ключем: ${fmt(preview.matched)}; невідомих ключів: ${fmt(preview.unknown)}; уже перекладено: ${fmt(preview.existing)}.`);
+    `Файл «${fileName}». ${preview.delimiter ? `Роздільник: ${DELIMITER_LABEL[preview.delimiter] ?? preview.delimiter}; ` : ''}кодування: ${preview.encoding ?? 'utf-8'}. Рядків: ${fmt(preview.total)}; збігів за ключем: ${fmt(preview.matched)}; невідомих ключів: ${fmt(preview.unknown)}; уже перекладено: ${fmt(preview.existing)}.`);
   const safeBox = h('input', { type: 'checkbox', checked: !!safe });
   safeBox.addEventListener('change', async () => {
-    try { await openPreview({ fileId, fileName, csvBase64, delimiter: delimSel.value, safe: safeBox.checked, canApprove, onDone }); dlg.close('redo'); }
+    try { await openPreview({ fileId, fileName, csvBase64, delimiter: delimSel.value, safe: safeBox.checked, canApprove, onDone, format }); dlg.close('redo'); }
     catch (e) { toast(e.message, true); safeBox.checked = !safeBox.checked; }
   });
-  const delimSel = h('select', { title: 'Роздільник стовпців' }, DELIMITERS.map(([v, l]) => h('option', { value: v }, l)));
+  const delimSel = h('select', { title: 'Роздільник стовпців' }, (format === 'txt' ? TXT_DELIMITERS : DELIMITERS).map(([v, l]) => h('option', { value: v }, l)));
   delimSel.value = delimiter;
   delimSel.addEventListener('change', async () => {
-    try { await openPreview({ fileId, fileName, csvBase64, delimiter: delimSel.value, safe: safeBox.checked, canApprove, onDone }); dlg.close('redo'); }
+    try { await openPreview({ fileId, fileName, csvBase64, delimiter: delimSel.value, safe: safeBox.checked, canApprove, onDone, format }); dlg.close('redo'); }
     catch (e) { toast(e.message, true); delimSel.value = delimiter; }
   });
   const msg = h('p', { class: 'error-text', role: 'alert' });
@@ -72,19 +74,19 @@ function showPreview({ fileId, fileName, csvBase64, delimiter, safe, preview, ca
     apply.disabled = true; msg.textContent = '';
     const selected = Object.fromEntries([...actions].map(([key, el]) => [key, el.value]));
     try {
-      const result = await api('POST', `/api/files/${fileId}/csv-import`, { csvBase64, delimiter, safe: !!safe, actions: selected });
+      const result = await api('POST', `/api/files/${fileId}/csv-import`, { csvBase64, delimiter, safe: !!safe, format, actions: selected });
       dlg.close('ok');
       toast(`Імпортовано перекладів: ${fmt(result.applied)}`);
       onDone?.();
     } catch (e) { msg.textContent = e.message; apply.disabled = false; }
   } }, 'Застосувати вибрані дії');
-  dlg.append(h('h3', null, 'Попередній перегляд CSV'),
+  dlg.append(h('h3', null, `Попередній перегляд ${FORMAT_LABEL[format]}`),
     summary,
-    h('label', { class: 'row', style: 'gap:8px;margin-bottom:8px' }, 'Роздільник:', delimSel),
-    h('label', { class: 'check', style: 'display:block;margin-bottom:12px', title: 'Увімкніть, якщо файл скачано з опцією «Безпечний режим для Excel»: початковий апостроф перед = + - @ буде знято' }, safeBox, ' Файл у «безпечному режимі для Excel»'),
+    format !== 'json' && h('label', { class: 'row', style: 'gap:8px;margin-bottom:8px' }, 'Роздільник:', delimSel),
+    format === 'csv' && h('label', { class: 'check', style: 'display:block;margin-bottom:12px', title: 'Увімкніть, якщо файл скачано з опцією «Безпечний режим для Excel»: початковий апостроф перед = + - @ буде знято' }, safeBox, ' Файл у «безпечному режимі для Excel»'),
     h('div', { style: 'overflow:auto;max-height:55vh' },
       h('table', { class: 'plain' },
-        h('thead', null, h('tr', null, h('th', null, 'Ключ'), h('th', null, 'З CSV'), h('th', null, 'Поточний переклад'), h('th', null, 'Стан'), h('th', null, 'Дія'))),
+        h('thead', null, h('tr', null, h('th', null, 'Ключ'), h('th', null, `З ${FORMAT_LABEL[format]}`), h('th', null, 'Поточний переклад'), h('th', null, 'Стан'), h('th', null, 'Дія'))),
         h('tbody', null, tableRows))),
     msg,
     h('div', { class: 'row', style: 'position:sticky;bottom:-24px;background:var(--raised);padding-top:12px' }, cancel, apply));
