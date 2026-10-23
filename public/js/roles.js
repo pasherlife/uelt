@@ -13,6 +13,6 @@ export const ROLE_HINTS = {
 };
 
 /** Ролі проєкту в порядку відображення. */
-export const PROJECT_ROLES = ['translator', 'editor', 'reviewer', 'manager', 'observer'];
+export const PROJECT_ROLES = ['manager', 'translator', 'editor', 'reviewer', 'observer'];
 
 export const roleLabel = (r) => ROLE_LABELS[r] ?? r ?? '';
