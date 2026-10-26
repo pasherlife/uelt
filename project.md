@@ -63,6 +63,7 @@ public/
   js/roles.js                  підписи й підказки ролей
   js/view_login.js, view_profile.js, view_projects.js, view_project.js, view_editor.js, view_admin.js
   js/activity_list.js          панель активності: сторінки 25/50/75/100, пошук, користувач, період, проєкт
+  js/icons.js                  іконки ролей (roleIcon, roleBadge) і вибір ролі з іконками (roleSelect)
   js/csv_import.js             діалог імпорту CSV (перегляд, дії по рядках, роздільник, safe-режим)
   js/translation_import.js     єдиний імпорт перекладу (.locres / .csv), очищення перекладу
   js/export_dialog.js          діалог «Скачати…» (.locres / .csv)

@@ -513,3 +513,22 @@ td.actions-cell .actions { flex-wrap: nowrap; align-items: center; }
 .activity .f.reset { align-self: flex-end; justify-content: flex-end; }
 .activity .f.reset .btn { padding: 0 18px; font-size: 14px; line-height: 1; }
 .activity .f.reset > span { display: none; }
+
+/* Ролі: іконки й вибір ролі */
+.role-ic { flex: none; display: inline-block; vertical-align: -0.2em; }
+.pill.role { display: inline-flex; align-items: center; gap: 5px; }
+.role-select { position: relative; display: inline-block; }
+.role-trigger {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 6px 12px; min-width: 160px;
+  background: var(--raised); border: 1px solid var(--rule); border-radius: var(--r-s); color: var(--ink); font: inherit; cursor: pointer; text-align: left;
+}
+.role-trigger:hover:not(:disabled) { border-color: var(--ink-3); }
+.role-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: -1px; border-color: var(--focus); }
+.role-trigger:disabled { opacity: .55; cursor: not-allowed; }
+.role-trigger .role-name { flex: 1; }
+.role-trigger .chev { color: var(--ink-3); font-size: 12px; }
+.role-panel { min-width: 220px; z-index: 30; }
+.role-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; }
+.role-opt .role-name { flex: 1; }
+.role-opt .tick { color: var(--ink-2); }
+.role-opt[aria-selected=true] { font-weight: 600; }

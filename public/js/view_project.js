@@ -7,6 +7,7 @@ import { get, post, patch, del, api } from './api.js';
 import { topbar, navigate } from './app.js';
 import { createStrip } from './strip.js';
 import { PROJECT_ROLES, ROLE_HINTS, roleLabel } from './roles.js';
+import { roleBadge, roleSelect as iconRoleSelect } from './icons.js';
 
 function splitName(name) {
   const i = name.lastIndexOf('/');
@@ -41,7 +42,7 @@ export async function projectView(root, projectId) {
         h('div', { class: 'hero-top' },
           h('div', { class: 'grow' },
             h('h1', null, p.name, p.archived && h('span', { class: 'pill', style: 'margin-left:12px;vertical-align:middle' }, 'архів'),
-              h('span', { class: 'pill', style: 'margin-left:8px;vertical-align:middle', title: ROLE_HINTS[data.me?.role] ?? 'Ваша роль у проєкті' }, roleLabel(data.me?.role))),
+              roleBadge(data.me?.role, { style: 'margin-left:8px;vertical-align:middle', title: ROLE_HINTS[data.me?.role] ?? 'Ваша роль у проєкті' })),
             p.description && h('p', { class: 'sub' }, p.description)),
           caps().manageProject && h('div', { class: 'row-actions' },
             h('button', { class: 'btn', onclick: editProject }, 'Налаштування'),
@@ -229,10 +230,7 @@ export async function projectView(root, projectId) {
   const roleSelect = (value, { disabled = false } = {}) => {
     const roles = assignableRoles();
     if (value && !roles.includes(value)) roles.push(value);
-    const sel = h('select', { disabled, 'aria-label': 'Роль у проєкті', title: ROLE_HINTS[value] ?? '' },
-      roles.map((r) => h('option', { value: r }, roleLabel(r))));
-    sel.value = value;
-    return sel;
+    return iconRoleSelect({ value, roles, disabled });
   };
 
   function membersTab() {
@@ -310,7 +308,7 @@ export async function projectView(root, projectId) {
       const prev = m.role;
       try {
         await patch(`/api/projects/${projectId}/members/${m.userId}`, { role: sel.value });
-        m.role = sel.value; count.textContent = label(); sel.title = ROLE_HINTS[sel.value] ?? '';
+        m.role = sel.value; count.textContent = label();
         toast('Роль збережено');
       } catch (e) { toast(e.message, true); sel.value = prev; count.textContent = label(); }
     });

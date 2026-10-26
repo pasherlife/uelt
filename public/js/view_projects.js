@@ -1,7 +1,7 @@
 import { h, clear, fmt, pct, plural, askDialog, toast } from './util.js';
 import { get, post } from './api.js';
 import { session, topbar, navigate } from './app.js';
-import { roleLabel } from './roles.js';
+import { roleBadge } from './icons.js';
 
 export function progressBar(s, { tall = false } = {}) {
   const t = s.totalRows || 1;
@@ -34,7 +34,7 @@ export async function projectsView(root) {
     h('div', { class: 'card-head' },
       h('h2', { class: 'card-title' }, p.name),
       p.archived && h('span', { class: 'pill' }, 'архів'),
-      !admin && p.myRole && h('span', { class: 'pill', title: 'Ваша роль у проєкті' }, roleLabel(p.myRole))),
+      !admin && p.myRole && roleBadge(p.myRole, { title: 'Ваша роль у проєкті' })),
     p.description && h('p', { class: 'card-desc' }, p.description),
     h('div', { class: 'card-progress' },
       h('div', { class: 'big-pct num' }, `${pct(p.stats.translatedRows, p.stats.totalRows)}`, h('small', null, '%')),

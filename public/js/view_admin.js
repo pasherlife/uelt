@@ -3,6 +3,7 @@ import { get, post, patch, put, del } from './api.js';
 import { session, topbar, navigate } from './app.js';
 import { activityPanel } from './activity_list.js';
 import { roleLabel } from './roles.js';
+import { roleBadge, roleIcon } from './icons.js';
 
 const STATUS = ['без статусу', 'на вичитку', 'затверджено'];
 
@@ -36,7 +37,7 @@ export async function adminView(root) {
         } catch (e) { msg.textContent = e.message; save.disabled = false; }
       } }, 'Зберегти зміни');
       dlg.append(h('h3', null, `Кабінет: ${profile.username}`),
-        h('p', { class: 'muted', style: 'margin-bottom:16px' }, `ID ${profile.id} · ${roleLabel(profile.role)} · ${profile.disabled ? 'акаунт вимкнено' : 'акаунт активний'}`),
+        h('p', { class: 'muted', style: 'margin-bottom:16px' }, `ID ${profile.id} · `, roleBadge(profile.role), ` · ${profile.disabled ? 'акаунт вимкнено' : 'акаунт активний'}`),
         field('Нік у UELT', username), field('Емейл', email), field('Discord', discord), field('Telegram', telegram), msg,
         h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => dlg.close() }, 'Скасувати'), save));
       dlg.addEventListener('close', () => dlg.remove());
@@ -94,7 +95,7 @@ export async function adminView(root) {
           avatar(u.username, { size: 34, title: '' }),
           h('div', { class: 'user-info' },
             h('div', { class: 'user-name' }, h('strong', null, u.username),
-              u.isAdmin && h('span', { class: 'pill admin' }, roleLabel(u.role)),
+              u.isAdmin && roleBadge(u.role, { admin: true }),
               u.disabled && h('span', { class: 'pill off' }, 'вимкнено')),
             h('div', { class: 'user-sub dim' }, contacts.length ? contacts.join(' · ') : 'контактів не вказано')))),
         h('td', { 'data-label': 'Зараз / був' }, u.online
