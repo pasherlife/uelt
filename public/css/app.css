@@ -419,6 +419,11 @@ body.editor-page { height: 100%; overflow: hidden; }
   table.plain td:last-child { display: block; }
   table.plain td:last-child::before { display: none; }
   .actions { justify-content: flex-start; }
+  table.users-table td:first-child::before { display: none; }
+  table.users-table td:first-child { text-align: left; }
+  table.users-table td.num { width: auto; padding-right: 12px; }
+  table.users-table tbody tr:hover td { background: none; }
+  table.users-table td.actions-cell { width: auto; }
   .log-line { grid-template-columns: 1fr; gap: 2px; }
 
   /* редактор */
@@ -468,3 +473,19 @@ body.editor-page { height: 100%; overflow: hidden; }
   #toast { transition: none; }
   .btn:active { transform: none; }
 }
+
+/* Адмінка: користувачі */
+.toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.user-search { flex: 1 1 260px; max-width: 360px; }
+table.users-table { overflow: visible; }
+table.users-table th.num, table.users-table td.num { text-align: right; width: 1%; white-space: nowrap; padding-right: 20px; }
+table.users-table tr:first-child th:first-child { border-top-left-radius: var(--r-m); }
+table.users-table tr:first-child th:last-child { border-top-right-radius: var(--r-m); }
+table.users-table tbody tr:hover td { background: var(--surface); }
+table.users-table tr.row-off .user-cell { opacity: .6; }
+.user-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.user-info { min-width: 0; }
+.user-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.user-sub { font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+td.actions-cell { width: 1%; white-space: nowrap; }
+td.actions-cell .actions { flex-wrap: nowrap; align-items: center; }
