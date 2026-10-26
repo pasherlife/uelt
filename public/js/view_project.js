@@ -44,7 +44,9 @@ export async function projectView(root, projectId) {
             p.description && h('p', { class: 'sub' }, p.description)),
           caps().manageProject && h('div', { class: 'row-actions' },
             h('button', { class: 'btn', onclick: editProject }, 'Налаштування'),
-            menu([{ label: 'Видалити проєкт…', danger: true, onclick: removeProject }], { label: 'Інші дії з проєктом' }))),
+            menu([
+              { label: p.archived ? 'Розархівувати проєкт' : 'Архівувати проєкт…', onclick: toggleArchive },
+              { label: 'Видалити проєкт…', danger: true, onclick: removeProject }], { label: 'Інші дії з проєктом' }))),
         h('div', { class: 'hero-figs' },
           h('div', { class: 'big-pct num' }, pct(t.translatedRows, t.totalRows), h('small', null, '%')),
           h('div', { class: 'grow' },
@@ -68,6 +70,12 @@ export async function projectView(root, projectId) {
     });
     if (!v) return;
     try { await patch(`/api/projects/${projectId}`, v); await reload(); toast('Збережено'); } catch (e) { toast(e.message, true); }
+  }
+
+  async function toggleArchive() {
+    const p = data.project;
+    if (!p.archived && !confirm(`Архівувати проєкт «${p.name}»? Він стане доступним лише для перегляду для всіх, зокрема для власника. Розархівувати зможе власник або адмін.`)) return;
+    try { await patch(`/api/projects/${projectId}`, { archived: !p.archived }); await reload(); toast(p.archived ? 'Проєкт розархівовано' : 'Проєкт заархівовано'); } catch (e) { toast(e.message, true); }
   }
 
   async function removeProject() {
