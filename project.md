@@ -49,6 +49,7 @@ src/
   locres.js                    parse/build .locres (Legacy…CityHash64ExternID), CRC32, ID рядків, маркери переносів
   importer.js                  importLocres / importSourceFile / sourceToLoc (csvToLoc)  / updateLocres / importTranslations
   csv_import.js                парсер CSV: detectDelimiter, decodeCsv, parseCsvTranslations, parseCsvSource
+  activity.js                  queryActivity: сторінки й фільтри журналу правок (проєкт і портал)
   formats.js                   TXT і JSON: parseTxtSource, parseJsonSource, parseSourceFile, parseTranslationsFile, escapeText
   exporter.js                  buildCsv (BOM, лапки, захист формул), buildTxt, buildJson і buildLocresExport (хеші, версії)
   cv2.js                       шифрування/розшифрування LUT Code Vein 2
@@ -61,6 +62,7 @@ public/
   js/app.js (роутер, topbar), api.js, util.js, strip.js
   js/roles.js                  підписи й підказки ролей
   js/view_login.js, view_profile.js, view_projects.js, view_project.js, view_editor.js, view_admin.js
+  js/activity_list.js          панель активності: сторінки 25/50/75/100, пошук, користувач, період, проєкт
   js/csv_import.js             діалог імпорту CSV (перегляд, дії по рядках, роздільник, safe-режим)
   js/translation_import.js     єдиний імпорт перекладу (.locres / .csv), очищення перекладу
   js/export_dialog.js          діалог «Скачати…» (.locres / .csv)
@@ -298,7 +300,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ## 7. Тестування
 
-- **91 автоматичний тест** (`npm test`): API й права (`api`, `roles_api`), матриця прав і міграція (`roles`), парсер CSV і кодування (`csv_parse`), імпорт перекладів (`csv`), CSV-джерело (`csv_source`), експорт і круговий прохід (`export`), TXT/JSON (`formats`), формат locres, CV2, пошта (`locres`, `mailer`).
+- **92 автоматичні тести** (`npm test`): API й права (`api`, `roles_api`), матриця прав і міграція (`roles`), парсер CSV і кодування (`csv_parse`), імпорт перекладів (`csv`), CSV-джерело (`csv_source`), експорт і круговий прохід (`export`), TXT/JSON (`formats`), активність (`activity`), формат locres, CV2, пошта (`locres`, `mailer`).
 - **Браузерна перевірка** (Chromium): користувачі всіх семи ролей на сторінках проєкту, редактора й адмінки — вкладки, кнопки, меню файлу, нотатки «лише перегляд» відповідають правам; діалог передачі власності; помилок JavaScript у консолі немає. Автоматичного набору браузерних тестів у репозиторії **немає** (перевірку виконано окремим скриптом).
 
 ---
@@ -361,3 +363,6 @@ Docker: `docker compose -f deploy/docker-compose.yml up -d --build` (домен 
 2. Розгорніть нову версію — міграція ролей виконається при першому старті (§3.3).
 3. Перевірте в «Адмінці», що власником став саме той, кого ви очікуєте; за потреби — `make-owner`.
 4. Перегляньте ролі учасників проєктів: колишні «з правом затверджувати» тепер **рецензенти** (і редагують усі файли проєкту), решта — **перекладачі** (як і раніше лише призначені файли).
+
+## Журнал активності (сторінки й фільтри)
+`GET /api/projects/:id/activity` (власник, адмін, менеджер) і `GET /api/admin/activity` (власник, адмін). Параметри: `page` (з 1), `pageSize` (`25|50|75|100`, за замовчуванням 25), `q` (слова через пробіл — усі мають зустрітися без урахування регістру в ключі, тексті (новому й старому), назві файлу, імені користувача), `user` (ім'я або `__deleted__`), `from`/`to` (мс від епохи; в інтерфейсі — дати за місцевим часом, межі включно), лише для порталу — `project` (id). Відповідь: `activity`, `total`, `page`, `pageSize`, `pages`, `users` (для списку фільтра), на порталі ще `projects`. Регістронезалежність кирилиці забезпечує SQL-функція `ulower` (`db.js`).

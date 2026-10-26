@@ -1,6 +1,7 @@
 import { pickAndImportTranslations, clearTranslations } from './translation_import.js';
 import { openExportDialog } from './export_dialog.js';
 import { h, clear, fmt, pct, plural, ago, dateTime, askDialog, toast, debounce, menu, avatar } from './util.js';
+import { activityPanel } from './activity_list.js';
 import { progressBar } from './view_projects.js';
 import { get, post, patch, del, api } from './api.js';
 import { topbar, navigate } from './app.js';
@@ -334,22 +335,7 @@ export async function projectView(root, projectId) {
   // ── Активність проєкту (власник, адмін, менеджер) ──
   const STATUS_NAMES = ['без статусу', 'на вичитку', 'затверджено'];
   function activityTab() {
-    const wrap = h('div', null, h('p', { class: 'dim' }, 'Завантаження…'));
-    get(`/api/projects/${projectId}/activity?limit=150`).then(({ activity }) => {
-      clear(wrap);
-      if (!activity.length) { wrap.append(h('div', { class: 'empty' }, h('strong', null, 'Правок ще не було'), 'Тут з’являтимуться зміни перекладів і статусів у цьому проєкті.')); return; }
-      wrap.append(...activity.map((a) => {
-        const changed = a.oldTranslation !== a.newTranslation;
-        return h('div', { class: 'log-line' },
-          h('span', { class: 'dim num' }, dateTime(a.at)),
-          h('strong', null, a.user ?? 'видалений акаунт'),
-          h('span', { class: 'txt', title: a.newTranslation },
-            h('a', { href: `#/f/${a.fileId}` }, a.file.split('/').pop()), ' · ', a.rowKey, ' · ',
-            changed ? `«${a.newTranslation || 'порожньо'}»` : '', changed && a.oldStatus !== a.newStatus ? ' · ' : '',
-            a.oldStatus !== a.newStatus ? `${STATUS_NAMES[a.oldStatus]} → ${STATUS_NAMES[a.newStatus]}` : ''));
-      }));
-    }).catch((e) => { clear(wrap).append(h('div', { class: 'notice error' }, e.message)); });
-    return wrap;
+    return activityPanel({ endpoint: `/api/projects/${projectId}/activity`, emptyText: 'Тут з’являтимуться зміни перекладів і статусів у цьому проєкті.' });
   }
 
   function render() {

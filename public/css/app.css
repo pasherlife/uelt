@@ -489,3 +489,21 @@ table.users-table tr.row-off .user-cell { opacity: .6; }
 .user-sub { font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
 td.actions-cell { width: 1%; white-space: nowrap; }
 td.actions-cell .actions { flex-wrap: nowrap; align-items: center; }
+
+/* Активність: фільтри й сторінки */
+.activity .filters { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; margin-bottom: 14px; }
+.activity .f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 130px; }
+.activity .f.grow { flex: 1 1 260px; }
+.activity .f input, .activity .f select { width: 100%; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 8px 0; font-size: 13px; }
+.pager-btns { display: inline-flex; align-items: center; gap: 6px; }
+.pager-cur { padding: 0 6px; color: var(--ink-2); }
+@media (max-width: 640px) { .activity .f { flex: 1 1 45%; } .activity .f.grow { flex-basis: 100%; } .pager { justify-content: center; } }
+.activity .f input, .activity .f select { height: 38px; box-sizing: border-box; }
+.activity .f { justify-content: flex-end; min-width: 0; }
+.activity .f.reset .btn { height: 38px; }
+.activity .f:not(.grow):not(.reset) { flex: 0 1 150px; }
+.activity .f.grow { flex: 1 1 180px; }
+.activity .f:not(.grow):not(.reset) { flex: 0 1 140px; }
+.activity .f.reset { flex: 0 0 auto; }
+.activity input[type=date] { border: 1px solid var(--rule); border-radius: 10px; background: var(--raised); color: var(--ink); font: inherit; padding: 0 10px; }

@@ -1,6 +1,7 @@
 import { h, clear, fmt, ago, dateTime, askDialog, toast, menu, avatar } from './util.js';
 import { get, post, patch, put, del } from './api.js';
 import { session, topbar, navigate } from './app.js';
+import { activityPanel } from './activity_list.js';
 import { roleLabel } from './roles.js';
 
 const STATUS = ['без статусу', 'на вичитку', 'затверджено'];
@@ -134,18 +135,7 @@ export async function adminView(root) {
   }
 
   async function activityTab() {
-    const { activity } = await get('/api/admin/activity?limit=150');
-    if (!activity.length) return h('div', { class: 'empty' }, h('strong', null, 'Правок ще не було'), 'Тут з’являтимуться останні зміни перекладів і статусів.');
-    return h('div', null, activity.map((a) => {
-      const changed = a.oldTranslation !== a.newTranslation;
-      return h('div', { class: 'log-line' },
-        h('span', { class: 'dim num' }, dateTime(a.at)),
-        h('strong', null, a.user ?? 'видалений акаунт'),
-        h('span', { class: 'txt', title: a.newTranslation },
-          h('a', { href: `#/f/${a.fileId}` }, `${a.project} / ${a.file.split('/').pop()}`), ' · ', a.rowKey, ' · ',
-          changed ? `«${a.newTranslation || 'порожньо'}»` : '', changed && a.oldStatus !== a.newStatus ? ' · ' : '',
-          a.oldStatus !== a.newStatus ? `${STATUS[a.oldStatus]} → ${STATUS[a.newStatus]}` : ''));
-    }));
+    return activityPanel({ endpoint: '/api/admin/activity', withProject: true, emptyText: 'Тут з’являтимуться останні зміни перекладів і статусів.' });
   }
 
   async function render() {

@@ -129,6 +129,8 @@ function migrateRoles(db) {
 export function openDb(dbPath) {
   if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
+  // регістронезалежний (Unicode) пошук: вбудований lower() працює лише для ASCII
+  db.function('ulower', { deterministic: true }, (v) => (v == null ? '' : String(v).toLowerCase()));
   db.exec(SCHEMA);
   // міграція: структурна ревізія файлу (зростає, коли змінюється набір/порядок рядків)
   if (!db.prepare('PRAGMA table_info(files)').all().some((c) => c.name === 'struct_rev')) {

@@ -1,5 +1,6 @@
 import { HttpError, readJson, readBody } from './http.js';
 import { requireUser, requireCan, projectAccess, requireProjectCan } from './perm.js';
+import { queryActivity } from './activity.js';
 import { importLocres, importSourceFile, sanitizeFileName, fileFormat, checkCv2 } from './importer.js';
 import { MAX_CSV_BYTES } from './csv_import.js';
 import { sumStats } from './stats.js';
@@ -228,19 +229,7 @@ export function registerProjectRoutes(router, app) {
     const user = requireUser(ctx);
     const pid = Number(ctx.params.id);
     requireProjectCan(db, pid, user, 'activity.view');
-    const limit = Math.min(Number(ctx.query.get('limit')) || 100, 500);
-    const rows = db.prepare(`
-      SELECT e.id, e.at, e.old_translation, e.new_translation, e.old_status, e.new_status,
-             u.username, f.id AS file_id, f.name AS file, r.row_key
-      FROM edits e JOIN files f ON f.id = e.file_id
-      LEFT JOIN users u ON u.id = e.user_id LEFT JOIN rows r ON r.id = e.row_id
-      WHERE f.project_id = ? ORDER BY e.id DESC LIMIT ?`).all(pid, limit);
-    return {
-      activity: rows.map((r) => ({
-        id: r.id, at: r.at, user: r.username, fileId: r.file_id, file: r.file, rowKey: r.row_key,
-        oldStatus: r.old_status, newStatus: r.new_status, oldTranslation: r.old_translation, newTranslation: r.new_translation,
-      })),
-    };
+    return queryActivity(db, ctx.query, { projectId: pid });
   });
 
   // ── Завантаження файлів у проєкт (адмін) ──

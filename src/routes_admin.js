@@ -2,6 +2,7 @@ import { HttpError, readJson } from './http.js';
 import { hashPassword, verifyPassword, checkPassword, normalizeUsername } from './auth.js';
 import { getSetting, setSetting } from './db.js';
 import { requireAdmin, requireCan } from './perm.js';
+import { queryActivity } from './activity.js';
 import { deleteUser, cleanContacts } from './users.js';
 
 export function registerAdminRoutes(router, app) {
@@ -163,22 +164,8 @@ export function registerAdminRoutes(router, app) {
 
   router.get('/api/admin/activity', (ctx) => {
     requireAdmin(ctx);
-    const limit = Math.min(Number(ctx.query.get('limit')) || 100, 500);
-    const rows = db.prepare(`
-      SELECT e.id, e.at, e.old_translation, e.new_translation, e.old_status, e.new_status,
-             u.username, f.id AS file_id, f.name AS file, p.id AS project_id, p.name AS project, r.row_key
-      FROM edits e
-      LEFT JOIN users u ON u.id = e.user_id
-      JOIN files f ON f.id = e.file_id
-      JOIN projects p ON p.id = f.project_id
-      LEFT JOIN rows r ON r.id = e.row_id
-      ORDER BY e.id DESC LIMIT ?`).all(limit);
-    return {
-      activity: rows.map((r) => ({
-        id: r.id, at: r.at, user: r.username, fileId: r.file_id, file: r.file, projectId: r.project_id, project: r.project,
-        rowKey: r.row_key, oldStatus: r.old_status, newStatus: r.new_status,
-        oldTranslation: r.old_translation, newTranslation: r.new_translation,
-      })),
-    };
+    const res = queryActivity(db, ctx.query, { withProject: true });
+    res.projects = db.prepare('SELECT id, name FROM projects ORDER BY name COLLATE NOCASE').all();
+    return res;
   });
 }
