@@ -507,3 +507,9 @@ td.actions-cell .actions { flex-wrap: nowrap; align-items: center; }
 .activity .f:not(.grow):not(.reset) { flex: 0 1 140px; }
 .activity .f.reset { flex: 0 0 auto; }
 .activity input[type=date] { border: 1px solid var(--rule); border-radius: 10px; background: var(--raised); color: var(--ink); font: inherit; padding: 0 10px; }
+/* Фільтри активності: усі елементи рівно 38px, кнопка «Скинути» вирівняна по нижньому краю */
+.activity .filters { align-items: flex-end; }
+.activity .f input, .activity .f select, .activity .f.reset .btn { height: 38px; min-height: 38px; max-height: 38px; box-sizing: border-box; margin: 0; }
+.activity .f.reset { align-self: flex-end; justify-content: flex-end; }
+.activity .f.reset .btn { padding: 0 18px; font-size: 14px; line-height: 1; }
+.activity .f.reset > span { display: none; }

@@ -40,7 +40,7 @@ export function activityPanel({ endpoint, withProject = false, emptyText }) {
       field('Користувач', userSel),
       field('З', from), field('По', to),
       field('Показувати', sizeSel),
-      h('div', { class: 'f' }, h('span', { class: 'dim' }, ' '), reset)),
+      h('div', { class: 'f reset' }, reset)),
     pagerTop, list, pagerBottom);
 
   const debounced = debounce(() => { st.q = search.value.trim(); st.page = 1; load(); }, 300);
