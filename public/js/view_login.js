@@ -36,7 +36,7 @@ export function loginView(root) {
         await refreshSession();
         if (!session.user) {
           err.textContent = location.protocol === 'http:' && location.hostname !== 'localhost'
-            ? 'Сервер прийняв вхід, але браузер не зберіг сесію: схоже, сайт відкрито по http, а сервер вимагає захищених cookie. Відкрийте сайт через https або запустіть сервер без UELT_SECURE_COOKIES.'
+            ? 'Сервер прийняв вхід, але браузер не зберіг сесію: схоже, сайт відкрито по http, а сервер вимагає захищених cookie. Відкрийте сайт через https або запустіть сервер без VERTO_SECURE_COOKIES.'
             : 'Сервер прийняв вхід, але браузер не зберіг сесію (cookie заблоковані?).';
           return;
         }
@@ -51,7 +51,7 @@ export function loginView(root) {
     err, submit, hint);
 
   clear(root).append(h('main', { class: 'login' },
-    h('h1', null, 'UELT Web'),
+    h('h1', null, 'VERTO Web'),
     h('p', { class: 'muted' }, 'Спільний переклад ігрових текстів: файли, рядки, статуси й вичитка в одному місці.'),
     h('div', { class: 'strip-wrap' }, strip.el),
     h('div', { class: 'tabs', role: 'tablist' }, tabLogin, session.registrationOpen && tabReg),

@@ -31,7 +31,7 @@ function fakeSmtp({ failRcpt = false } = {}) {
 test('SMTP: лист із кирилицею доходить, адресат і автентифікація коректні', async () => {
   const f = await fakeSmtp();
   await sendSmtp({ host: '127.0.0.1', port: f.port, user: 'u@x.com', pass: 'pw', from: 'u@x.com', secure: false },
-    { to: 'elpasher.game@gmail.com', subject: 'UELT: новий користувач Аня', text: 'Привіт\n.крапка на початку' });
+    { to: 'elpasher.game@gmail.com', subject: 'VERTO: новий користувач Аня', text: 'Привіт\n.крапка на початку' });
   f.server.close();
   assert.ok(f.log.cmds.some((c) => c === 'RCPT TO:<elpasher.game@gmail.com>'));
   assert.ok(f.log.cmds.some((c) => c.startsWith('AUTH PLAIN ')));
@@ -44,7 +44,7 @@ test('mailerFromEnv: за замовчуванням шле на elpasher.game@g
   assert.equal(mailerFromEnv({}).to, 'elpasher.game@gmail.com');
   assert.equal(mailerFromEnv({}).configured, false);
   const f = await fakeSmtp({ failRcpt: true });
-  const m = mailerFromEnv({ UELT_SMTP_HOST: '127.0.0.1', UELT_SMTP_PORT: String(f.port), UELT_SMTP_SECURE: '0', UELT_SMTP_USER: 'a@b.c', UELT_SMTP_PASS: 'x' });
+  const m = mailerFromEnv({ VERTO_SMTP_HOST: '127.0.0.1', VERTO_SMTP_PORT: String(f.port), VERTO_SMTP_SECURE: '0', VERTO_SMTP_USER: 'a@b.c', VERTO_SMTP_PASS: 'x' });
   const origErr = console.error; console.error = () => {};
   try { assert.equal(await m.send('тема', 'текст'), false); } finally { console.error = origErr; f.server.close(); }
   assert.match(buildMessage({ from: 'a@b.c', to: 'x@y.z', subject: 'ok', text: 't' }), /Subject: ok/);

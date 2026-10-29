@@ -106,12 +106,12 @@ export function theme() {
 export function toggleTheme() {
   const next = theme() === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
-  try { localStorage.setItem('uelt-theme', next); } catch { /* ignore */ }
-  window.dispatchEvent(new Event('uelt-theme'));
+  try { localStorage.setItem('verto-theme', next); } catch { /* ignore */ }
+  window.dispatchEvent(new Event('verto-theme'));
 }
 export function initTheme() {
   try {
-    const t = localStorage.getItem('uelt-theme');
+    const t = localStorage.getItem('verto-theme');
     if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   } catch { /* ignore */ }
 }

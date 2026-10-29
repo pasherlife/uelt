@@ -1,4 +1,4 @@
-// Читання та збирання .locres (Unreal Engine) — порт з десктопної версії UELT (LocresNamespace.cs).
+// Читання та збирання .locres (Unreal Engine) — порт з десктопної версії (LocresNamespace.cs).
 // Підтримуються версії Legacy, Compact, Optimized, Optimized_CityHash64_UTF16, Optimized_CityHash64_ExternID_UTF16.
 // Зашифровані CV2-файли поки не підтримуються.
 

@@ -75,7 +75,7 @@ test('сумісність can_approve ⇄ роль', () => {
 
 // ── Міграція ──
 test('міграція: старий адмін → власник, інші адміни → admin, can_approve → reviewer; повторне відкриття нічого не ламає', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uelt-mig-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'verto-mig-'));
   const file = path.join(dir, 'old.db');
   const old = new DatabaseSync(file);
   old.exec(`
@@ -110,7 +110,7 @@ test('міграція: старий адмін → власник, інші а�
 });
 
 test('міграція: порожня стара БД без адмінів не створює власника', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uelt-mig2-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'verto-mig2-'));
   const file = path.join(dir, 'old.db');
   const old = new DatabaseSync(file);
   old.exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL, username_lc TEXT NOT NULL UNIQUE, password TEXT NOT NULL,

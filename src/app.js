@@ -15,7 +15,7 @@ import { mailerFromEnv } from './mailer.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
-export function createApp({ dbPath = 'data/uelt.db', secureCookies = false, mailer = null } = {}) {
+export function createApp({ dbPath = 'data/verto.db', secureCookies = false, mailer = null } = {}) {
   const db = openDb(dbPath);
   const app = { db, mailer: mailer ?? mailerFromEnv(), presence: new Presence(), stats: new StatsCache(db), strips: new StripCache(db), throttle: new LoginThrottle() };
   const router = new Router();
@@ -35,10 +35,10 @@ export function createApp({ dbPath = 'data/uelt.db', secureCookies = false, mail
       }
 
       // Захист від CSRF: усі змінювальні запити мають нести спеціальний заголовок (його не можна додати з чужого сайту без CORS).
-      if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-uelt'] !== '1') throw new HttpError(403, 'Заборонено.');
+      if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-verto'] !== '1') throw new HttpError(403, 'Заборонено.');
 
       const cookies = parseCookies(req.headers.cookie);
-      const token = cookies.uelt_session || null;
+      const token = cookies.verto_session || null;
       const user = userFromToken(db, token);
       const secure = secureCookies || req.headers['x-forwarded-proto'] === 'https';
       const ctx = {

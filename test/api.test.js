@@ -37,7 +37,7 @@ test('нік унікальний без урахування регістру; 
   assert.equal((await c.post('/api/auth/register', { username: 'bad@mail', password: 'secret1' })).status, 400);
 });
 
-test('CSRF: зміни без заголовка X-UELT відхиляються', async () => {
+test('CSRF: зміни без заголовка X-VERTO відхиляються', async () => {
   const res = await fetch(`${srv.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(res.status, 403);
 });

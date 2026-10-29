@@ -1,7 +1,7 @@
 import { openDb } from './db.js';
 
 const [cmd, nick] = process.argv.slice(2);
-const db = openDb(process.env.UELT_DB || 'data/uelt.db');
+const db = openDb(process.env.VERTO_DB || 'data/verto.db');
 const lc = (nick ?? '').replace(/^@/, '').toLowerCase();
 
 if (cmd === 'make-admin' && nick) {

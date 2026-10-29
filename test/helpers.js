@@ -14,7 +14,7 @@ export async function startServer() {
 export function client(base) {
   let cookie = '';
   async function call(method, url, body, { raw = false, headers = {} } = {}) {
-    const h = { 'X-UELT': '1', ...headers };
+    const h = { 'X-VERTO': '1', ...headers };
     if (cookie) h.Cookie = cookie;
     let payload;
     if (body instanceof Buffer) payload = body;

@@ -3,7 +3,7 @@ export class ApiError extends Error {
 }
 
 export async function api(method, url, body, { signal } = {}) {
-  const headers = { 'X-UELT': '1' };
+  const headers = { 'X-VERTO': '1' };
   let payload;
   if (body instanceof Blob || body instanceof ArrayBuffer) payload = body;
   else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
@@ -16,7 +16,7 @@ export async function api(method, url, body, { signal } = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401 && !url.startsWith('/api/auth/')) window.dispatchEvent(new Event('uelt-unauthorized'));
+    if (res.status === 401 && !url.startsWith('/api/auth/')) window.dispatchEvent(new Event('verto-unauthorized'));
     throw new ApiError(data?.error || `Помилка ${res.status}`, res.status, data);
   }
   return data;

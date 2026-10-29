@@ -8,7 +8,7 @@ import { requireUser } from './perm.js';
 import { cleanContacts, notifyRegistered, deleteUser } from './users.js';
 
 function sessionCookie(token, secure, maxAgeSec) {
-  return `uelt_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure ? '; Secure' : ''}`;
+  return `verto_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure ? '; Secure' : ''}`;
 }
 
 export function registerAuthRoutes(router, app) {

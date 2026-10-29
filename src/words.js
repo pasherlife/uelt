@@ -1,4 +1,4 @@
-// Підрахунок слів — порт StatisticsManager.CountWords з десктопної версії UELT.
+// Підрахунок слів — порт StatisticsManager.CountWords з десктопної версії.
 
 const WORD = /[\p{L}\p{Nd}]+(?:[_\-*&'’–—][\p{L}\p{Nd}]+)*/gu;
 const PLACEHOLDER = /\{[^}]+\}/g;
