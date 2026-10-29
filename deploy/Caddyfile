@@ -1,4 +1,4 @@
 translate.example.com {
 	encode gzip
-	reverse_proxy verto:3000
+	reverse_proxy uelt:3000
 }

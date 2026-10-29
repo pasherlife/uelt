@@ -8,7 +8,7 @@ export async function profileView(root) {
     const input = h('input', { type: 'text', value, autocomplete: 'off', ...props });
     return { input, el: h('label', { class: 'field' }, h('span', null, label), input) };
   };
-  const username = field('Нік у VERTO (3–64 символи, без пробілів)', 'username', profile.username, { required: true, minlength: 3, maxlength: 64 });
+  const username = field('Нік у UELT (3–64 символи, без пробілів)', 'username', profile.username, { required: true, minlength: 3, maxlength: 64 });
   const email = field('Емейл', 'email', profile.email, { inputmode: 'email', placeholder: 'name@example.com' });
   const discord = field('Нікнейм у Discord', 'discord', profile.discord, { placeholder: 'наприклад, anna_ua' });
   const telegram = field('Нікнейм або телефон у Telegram', 'telegram', profile.telegram, { placeholder: '@nick або +380…' });

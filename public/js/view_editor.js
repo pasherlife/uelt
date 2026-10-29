@@ -555,7 +555,7 @@ export async function editorView(root, fileId) {
       // не губимо незбережений текст при виході з редактора
       if (isDirty() && st.active) {
         fetch(`/api/files/${fileId}/rows/${st.active.id}`, {
-          method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-VERTO': '1' },
+          method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-UELT': '1' },
           body: JSON.stringify({ ver: st.active.ver, translation: area.value }),
         }).catch(() => {});
       }
@@ -565,7 +565,7 @@ export async function editorView(root, fileId) {
       window.removeEventListener('beforeunload', beforeUnload);
       window.removeEventListener('resize', scheduleRender);
       strip.destroy();
-      fetch(`/api/files/${fileId}/leave`, { method: 'POST', keepalive: true, headers: { 'X-VERTO': '1' } }).catch(() => {});
+      fetch(`/api/files/${fileId}/leave`, { method: 'POST', keepalive: true, headers: { 'X-UELT': '1' } }).catch(() => {});
     },
   };
 }

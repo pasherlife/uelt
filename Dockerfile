@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json ./
 COPY src ./src
 COPY public ./public
-ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 VERTO_DB=/data/verto.db
+ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 UELT_DB=/data/uelt.db
 # За HTTPS-проксі (Caddy) прапорець Secure ставиться автоматично за заголовком X-Forwarded-Proto.
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data

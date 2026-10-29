@@ -1,8 +1,8 @@
 // Мінімальний SMTP-клієнт без залежностей (TLS 465 або STARTTLS 587, AUTH PLAIN/LOGIN).
 // Налаштування через змінні середовища:
-//   VERTO_SMTP_HOST, VERTO_SMTP_PORT (465 за замовчуванням), VERTO_SMTP_USER, VERTO_SMTP_PASS,
-//   VERTO_SMTP_FROM (за замовчуванням = USER), VERTO_SMTP_SECURE=0 — вимкнути TLS (лише для тестів),
-//   VERTO_NOTIFY_TO — кому слати сповіщення (за замовчуванням elpasher.game@gmail.com).
+//   UELT_SMTP_HOST, UELT_SMTP_PORT (465 за замовчуванням), UELT_SMTP_USER, UELT_SMTP_PASS,
+//   UELT_SMTP_FROM (за замовчуванням = USER), UELT_SMTP_SECURE=0 — вимкнути TLS (лише для тестів),
+//   UELT_NOTIFY_TO — кому слати сповіщення (за замовчуванням elpasher.game@gmail.com).
 import net from 'node:net';
 import tls from 'node:tls';
 import os from 'node:os';
@@ -75,14 +75,14 @@ export async function sendSmtp(cfg, { to, subject, text }) {
   const cmd = async (line, codes) => { sock.write(`${line}\r\n`); return expect(codes); };
   try {
     await expect([220]);
-    let ehlo = await cmd(`EHLO ${os.hostname() || 'verto'}`, [250]);
+    let ehlo = await cmd(`EHLO ${os.hostname() || 'uelt'}`, [250]);
     if (!implicitTls && secure) {
       await cmd('STARTTLS', [220]);
       sock.removeAllListeners('data');
       sock = tls.connect({ socket: sock, servername: cfg.host });
       sock.setTimeout(timeout, () => sock.destroy(new Error('Тайм-аут SMTP.')));
       reader = lineReader(); reader.attach(sock);
-      ehlo = await cmd(`EHLO ${os.hostname() || 'verto'}`, [250]);
+      ehlo = await cmd(`EHLO ${os.hostname() || 'uelt'}`, [250]);
     }
     if (cfg.user) {
       const mech = /AUTH[^\n]*PLAIN/i.test(ehlo.text) ? 'PLAIN' : 'LOGIN';
@@ -99,11 +99,11 @@ export async function sendSmtp(cfg, { to, subject, text }) {
 }
 
 export function mailerFromEnv(env = process.env) {
-  const host = env.VERTO_SMTP_HOST;
-  const to = env.VERTO_NOTIFY_TO || DEFAULT_NOTIFY_TO;
+  const host = env.UELT_SMTP_HOST;
+  const to = env.UELT_NOTIFY_TO || DEFAULT_NOTIFY_TO;
   const cfg = host ? {
-    host, port: Number(env.VERTO_SMTP_PORT) || 465, user: env.VERTO_SMTP_USER || '', pass: env.VERTO_SMTP_PASS || '',
-    from: env.VERTO_SMTP_FROM || env.VERTO_SMTP_USER || '', secure: env.VERTO_SMTP_SECURE !== '0',
+    host, port: Number(env.UELT_SMTP_PORT) || 465, user: env.UELT_SMTP_USER || '', pass: env.UELT_SMTP_PASS || '',
+    from: env.UELT_SMTP_FROM || env.UELT_SMTP_USER || '', secure: env.UELT_SMTP_SECURE !== '0',
   } : null;
   return {
     to,

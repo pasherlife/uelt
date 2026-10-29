@@ -64,7 +64,7 @@ export function createStrip({ tall = false, onJump } = {}) {
 
   const ro = new ResizeObserver(() => draw());
   ro.observe(root);
-  window.addEventListener('verto-theme', draw);
+  window.addEventListener('uelt-theme', draw);
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', draw);
 
   return {
@@ -76,7 +76,7 @@ export function createStrip({ tall = false, onJump } = {}) {
       cursor.classList.remove('hidden');
       cursor.style.left = `calc(${((pos + 0.5) / rowCount) * 100}% - 1px)`;
     },
-    destroy() { ro.disconnect(); window.removeEventListener('verto-theme', draw); },
+    destroy() { ro.disconnect(); window.removeEventListener('uelt-theme', draw); },
   };
 }
 

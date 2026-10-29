@@ -28,7 +28,7 @@ export function topbar(crumbs = []) {
   ], { label: `Меню: ${u.username}`, trigger: [avatar(u.username, { size: 28, title: '' }), h('span', { class: 'who-name' }, u.username)], class: 'user-btn' });
   return h('header', { class: 'topbar' },
     parent && h('a', { class: 'back', href: parent.href, 'aria-label': `Назад: ${parent.label}` }, '‹'),
-    h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')), h('span', { class: 'brand-name' }, 'VERTO')),
+    h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')), h('span', { class: 'brand-name' }, 'UELT')),
     h('nav', { class: 'crumbs', 'aria-label': 'Шлях' }, crumbs.map((c) => (
       c.href ? h('a', { href: c.href }, c.label) : h('span', { class: 'here' }, c.label)))),
     h('span', { class: 'spacer' }),
@@ -77,5 +77,5 @@ async function route() {
 }
 
 window.addEventListener('hashchange', route);
-window.addEventListener('verto-unauthorized', () => { if (session.user) { session.user = null; toast('Сеанс завершено. Увійдіть знову.', true); route(); } });
+window.addEventListener('uelt-unauthorized', () => { if (session.user) { session.user = null; toast('Сеанс завершено. Увійдіть знову.', true); route(); } });
 route();

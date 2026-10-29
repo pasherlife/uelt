@@ -1,20 +1,20 @@
 # Запуск: поставте свій домен у deploy/Caddyfile, потім `docker compose -f deploy/docker-compose.yml up -d --build`
 # (запускати з кореня проєкту). Caddy сам отримає HTTPS-сертифікат.
 services:
-  verto:
+  uelt:
     build: ..
     restart: unless-stopped
     # Сповіщення на пошту (реєстрація/видалення користувачів). Для Gmail потрібен «пароль застосунку».
     # Значення краще винести у файл deploy/.env (docker compose підхопить його автоматично).
     environment:
-      VERTO_SMTP_HOST: ${VERTO_SMTP_HOST:-}
-      VERTO_SMTP_PORT: ${VERTO_SMTP_PORT:-465}
-      VERTO_SMTP_USER: ${VERTO_SMTP_USER:-}
-      VERTO_SMTP_PASS: ${VERTO_SMTP_PASS:-}
-      VERTO_SMTP_FROM: ${VERTO_SMTP_FROM:-}
-      VERTO_NOTIFY_TO: ${VERTO_NOTIFY_TO:-elpasher.game@gmail.com}
+      UELT_SMTP_HOST: ${UELT_SMTP_HOST:-}
+      UELT_SMTP_PORT: ${UELT_SMTP_PORT:-465}
+      UELT_SMTP_USER: ${UELT_SMTP_USER:-}
+      UELT_SMTP_PASS: ${UELT_SMTP_PASS:-}
+      UELT_SMTP_FROM: ${UELT_SMTP_FROM:-}
+      UELT_NOTIFY_TO: ${UELT_NOTIFY_TO:-elpasher.game@gmail.com}
     volumes:
-      - verto-data:/data
+      - uelt-data:/data
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -22,7 +22,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
-    depends_on: [verto]
+    depends_on: [uelt]
 volumes:
-  verto-data:
+  uelt-data:
   caddy-data:

@@ -38,7 +38,7 @@ export async function adminView(root) {
       } }, 'Зберегти зміни');
       dlg.append(h('h3', null, `Кабінет: ${profile.username}`),
         h('p', { class: 'muted', style: 'margin-bottom:16px' }, `ID ${profile.id} · `, roleBadge(profile.role), ` · ${profile.disabled ? 'акаунт вимкнено' : 'акаунт активний'}`),
-        field('Нік у VERTO', username), field('Емейл', email), field('Discord', discord), field('Telegram', telegram), msg,
+        field('Нік у UELT', username), field('Емейл', email), field('Discord', discord), field('Telegram', telegram), msg,
         h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => dlg.close() }, 'Скасувати'), save));
       dlg.addEventListener('close', () => dlg.remove());
       document.body.append(dlg); dlg.showModal();

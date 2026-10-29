@@ -1,8 +1,8 @@
-# VERTO Web — проєктний документ
+# UELT Web — проєктний документ
 
 > Спільний переклад ігрових локалізацій (`.locres` Unreal Engine, `.csv`, `.txt` і `.json`) з акаунтами, ролями, статусами рядків і прогресом у реальному часі.
 >
-> Документ описує **фактичний стан** репозиторію `pasherlife/verto` (гілка `main`, коміт `e9a8f06` і новіші). Усі етапи початкового плану виконано; відхилення від плану та те, що лишилося, — у §9 і §10.
+> Документ описує **фактичний стан** репозиторію `pasherlife/uelt` (гілка `main`, коміт `e9a8f06` і новіші). Усі етапи початкового плану виконано; відхилення від плану та те, що лишилося, — у §9 і §10.
 
 ---
 
@@ -14,7 +14,7 @@
 | Мова інтерфейсу | Українська |
 | Бекенд | Node.js **≥ 22.13**, вбудований `node:http`, `node:sqlite`; **без npm-залежностей** |
 | Фронтенд | Vanilla JS (ES-модулі), без збірки, `public/` |
-| Сховище | SQLite (WAL), файл `data/verto.db` (змінна `VERTO_DB`) |
+| Сховище | SQLite (WAL), файл `data/uelt.db` (змінна `UELT_DB`) |
 | Реальний час | Опитування `GET /api/files/:id/changes?since=<rev>` (він же heartbeat присутності) |
 | Розгортання | Docker + Caddy (авто-HTTPS) або systemd + nginx/Caddy |
 | Тести | `node --test`, **84 тести, усі проходять**; інтерфейс додатково перевірено в Chromium для всіх семи ролей |
@@ -27,7 +27,7 @@
 - Статуси рядків («Без статусу» → «На вичитку» → «Затверджено»), статистика слів і рядків, смуга прогресу, присутність, журнал правок.
 - Шифрований LUT Code Vein 2, оновлення оригіналу зі звітом, сповіщення на пошту.
 
-**Поняття «портал»** = один розгорнутий екземпляр VERTO Web (одна БД, один домен). Мульти-портальність (кілька незалежних просторів в одній БД) **не реалізована** (§10, питання 1).
+**Поняття «портал»** = один розгорнутий екземпляр UELT Web (одна БД, один домен). Мульти-портальність (кілька незалежних просторів в одній БД) **не реалізована** (§10, питання 1).
 
 ---
 
@@ -67,7 +67,7 @@ public/
   js/csv_import.js             діалог імпорту CSV (перегляд, дії по рядках, роздільник, safe-режим)
   js/translation_import.js     єдиний імпорт перекладу (.locres / .csv), очищення перекладу
   js/export_dialog.js          діалог «Скачати…» (.locres / .csv)
-deploy/ (Caddyfile, docker-compose.yml, verto.service, backup.mjs)
+deploy/ (Caddyfile, docker-compose.yml, uelt.service, backup.mjs)
 test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_api + helpers)
 ```
 
@@ -308,7 +308,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 
 ## 8. Безпека
 
-- scrypt для паролів, сесії з хешем токена в БД, HttpOnly + SameSite=Lax cookie (Secure за HTTPS/проксі), CSRF-заголовок `X-VERTO`, обмеження спроб входу, CSP, заборона виходу за межі `public/`.
+- scrypt для паролів, сесії з хешем токена в БД, HttpOnly + SameSite=Lax cookie (Secure за HTTPS/проксі), CSRF-заголовок `X-UELT`, обмеження спроб входу, CSP, заборона виходу за межі `public/`.
 - **Усі перевірки прав — на сервері**; сторонній отримує 404.
 - Захист від ескалації: менеджер не призначає/не змінює менеджерів; адмін не чіпає власника й інших адмінів; ролі `admin` призначає лише власник; власника не можна понизити/вимкнути/видалити.
 - Передача власності потребує пароля й завершує сесії обох сторін.
@@ -325,7 +325,7 @@ test/   (api, csv, csv_parse, csv_source, export, locres, mailer, roles, roles_a
 | Тести UI | Немає автоматичних браузерних тестів | відкрите |
 | `src/locres.js` (шапка) | Коментар «Зашифровані CV2-файли поки не підтримуються», хоча `cv2.js` є й протестований | не виправлено |
 | `src/routes_auth.js` | Помилка реєстрації каже «нік або емейл», а вхід лише за ніком | не виправлено |
-| Сповіщення | Адреса отримувача за замовчуванням захардкожена в `mailer.js` і `deploy/docker-compose.yml`; у README її вже приховано | радимо задати `VERTO_NOTIFY_TO` |
+| Сповіщення | Адреса отримувача за замовчуванням захардкожена в `mailer.js` і `deploy/docker-compose.yml`; у README її вже приховано | радимо задати `UELT_NOTIFY_TO` |
 | Хеші CityHash64 | Не перераховуються (версії 3 і 4) | `.locres` із CSV-джерела збирається лише у версіях 0–2 |
 | Нові рядки | Не можна додати рядок через UI (лише редагувати/оновлювати оригінал) | поза межами цього плану |
 | Мульти-портальність | Один портал на встановлення | §10 |
@@ -355,9 +355,9 @@ npm run make-admin -- <нік>    # зробити адміном (власни�
 node src/cli.js make-owner <нік>   # аварійно призначити власника
 ```
 
-Змінні: `PORT`, `HOST`, `VERTO_DB`, `VERTO_SECURE_COOKIES`, `VERTO_SMTP_HOST/PORT/USER/PASS/FROM`, `VERTO_NOTIFY_TO`.
-Docker: `docker compose -f deploy/docker-compose.yml up -d --build` (домен — у `deploy/Caddyfile`; дані — том `verto-data`).
-Резервні копії: `node deploy/backup.mjs data/verto.db backups` (безпечно під час роботи), cron раз на добу.
+Змінні: `PORT`, `HOST`, `UELT_DB`, `UELT_SECURE_COOKIES`, `UELT_SMTP_HOST/PORT/USER/PASS/FROM`, `UELT_NOTIFY_TO`.
+Docker: `docker compose -f deploy/docker-compose.yml up -d --build` (домен — у `deploy/Caddyfile`; дані — том `uelt-data`).
+Резервні копії: `node deploy/backup.mjs data/uelt.db backups` (безпечно під час роботи), cron раз на добу.
 
 **Оновлення з версії без ролей:**
 1. Зробіть резервну копію БД (команда вище).
