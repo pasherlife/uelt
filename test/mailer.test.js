@@ -31,7 +31,7 @@ function fakeSmtp({ failRcpt = false } = {}) {
 test('SMTP: лист із кирилицею доходить, адресат і автентифікація коректні', async () => {
   const f = await fakeSmtp();
   await sendSmtp({ host: '127.0.0.1', port: f.port, user: 'u@x.com', pass: 'pw', from: 'u@x.com', secure: false },
-    { to: 'elpasher.game@gmail.com', subject: 'UELT: новий користувач Аня', text: 'Привіт\n.крапка на початку' });
+    { to: 'elpasher.game@gmail.com', subject: 'VERTO: новий користувач Аня', text: 'Привіт\n.крапка на початку' });
   f.server.close();
   assert.ok(f.log.cmds.some((c) => c === 'RCPT TO:<elpasher.game@gmail.com>'));
   assert.ok(f.log.cmds.some((c) => c.startsWith('AUTH PLAIN ')));

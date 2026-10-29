@@ -51,7 +51,7 @@ export function loginView(root) {
     err, submit, hint);
 
   clear(root).append(h('main', { class: 'login' },
-    h('h1', null, 'UELT Web'),
+    h('h1', null, 'VERTO Web'),
     h('p', { class: 'muted' }, 'Спільний переклад ігрових текстів: файли, рядки, статуси й вичитка в одному місці.'),
     h('div', { class: 'strip-wrap' }, strip.el),
     h('div', { class: 'tabs', role: 'tablist' }, tabLogin, session.registrationOpen && tabReg),

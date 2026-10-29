@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "UELT Web — спільний переклад locres-файлів з акаунтами та правами доступу",
+  "description": "VERTO Web — спільний переклад locres-файлів з акаунтами та правами доступу",
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",

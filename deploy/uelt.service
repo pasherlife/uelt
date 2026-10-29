@@ -1,7 +1,7 @@
 # Без Docker: скопіть проєкт у /opt/uelt, `cp deploy/uelt.service /etc/systemd/system/`,
 # `systemctl enable --now uelt`. HTTPS забезпечте через Caddy/nginx перед ним.
 [Unit]
-Description=UELT Web
+Description=VERTO Web
 After=network.target
 
 [Service]

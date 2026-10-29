@@ -8,7 +8,7 @@ const secureCookies = process.env.UELT_SECURE_COOKIES === '1';
 const { server, db } = createApp({ dbPath, secureCookies });
 server.listen(port, host, () => {
   const users = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
-  console.log(`UELT Web: http://${host}:${port}`);
+  console.log(`VERTO Web: http://${host}:${port}`);
   if (users === 0) console.log('Акаунтів ще немає — перший зареєстрований акаунт стане адміністратором.');
 });
 

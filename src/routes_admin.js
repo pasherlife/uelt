@@ -157,7 +157,7 @@ export function registerAdminRoutes(router, app) {
       db.prepare('DELETE FROM sessions WHERE user_id IN (?, ?)').run(me.id, targetId);
       db.exec('COMMIT');
     } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
-    app.mailer?.send?.(`UELT: власність порталу передано ${target.username}`,
+    app.mailer?.send?.(`VERTO: власність порталу передано ${target.username}`,
       `Власність порталу передано.\n\nБуло: ${me.username}\nСтало: ${target.username}\nЧас: ${new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' })}`);
     return { ok: true, newOwner: target.username };
   });

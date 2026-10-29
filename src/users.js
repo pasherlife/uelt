@@ -28,7 +28,7 @@ const fmtTime = () => new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyi
 
 export function notifyRegistered(app, user) {
   const total = app.db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
-  app.mailer.send(`UELT: новий користувач ${user.username}`,
+  app.mailer.send(`VERTO: новий користувач ${user.username}`,
     `Зареєструвався новий користувач.\n\nНік: ${user.username}\nЧас: ${fmtTime()}\nУсього користувачів: ${total}`);
 }
 
@@ -37,7 +37,7 @@ export function deleteUser(app, user, by) {
   const { db } = app;
   const stats = db.prepare('SELECT COUNT(*) AS n FROM edits WHERE user_id = ?').get(user.id).n;
   db.prepare('DELETE FROM users WHERE id = ?').run(user.id); // сесії, членство й доступи видаляються каскадно
-  app.mailer.send(`UELT: користувач ${user.username} видалений`,
+  app.mailer.send(`VERTO: користувач ${user.username} видалений`,
     `Користувача видалено з системи.\n\nНік: ${user.username}\n${contactLines(user)}\nЧас: ${fmtTime()}\n` +
     `Видалив: ${by ? `адміністратор ${by}` : 'сам користувач'}\nКількість його правок (лишаються в історії): ${stats}`);
 }
